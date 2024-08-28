@@ -80,8 +80,8 @@ def ProxCurrEmptyEnv(EmptyEnv):
             novelty_function=lambda _: 0,  # TODO: set this properly
             state_candidates=self.generate_state_candidates(),
             state_to_obs=StateToObs,  # type: ignore  # this is a Callable but LSP doesn't know
-            beta_proximal=0,
-            gamma_tradeoff=0,
+            beta_proximal=options["beta_proximal"] if options and "beta_proximal" in options else 1,
+            gamma_tradeoff=options["gamma_tradeoff"] if options and "gamma_tradeoff" in options else 0.5,
         )
 
         # Return first observation
