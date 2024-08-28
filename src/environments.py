@@ -1,9 +1,11 @@
 import gymnasium as gym
+import numpy as np
 from minigrid.envs import EmptyEnv
 from stable_baselines3.common.on_policy_algorithm import OnPolicyAlgorithm
 from gymnasium.core import ObsType
 from logic import pick_starting_state
 
+from itertools import product
 from typing import Optional, Any
 
 # +--------------------------------------------------------------------------------------------+
@@ -38,6 +40,18 @@ def ProxCurrEmptyEnv(EmptyEnv):
         self.agent = agent
         return
 
+    def generate_state_candidates(self) -> list[tuple[tuple[int, int], int]]:
+        """ Generate all states that the agent could be in in this environment
+
+        Returns:
+            list of states
+        """
+        positions = product(range(0, self.grid.width), range(0, self.grid.height))
+        valid_positions = filter(lambda pos: self.grid.get(*pos) is None, positions)
+        directions = range(0, 4)
+
+        return list(product(valid_positions, directions))
+
     def reset(
         self,
         *,
@@ -55,18 +69,16 @@ def ProxCurrEmptyEnv(EmptyEnv):
         """
         default_obs, info = super(EmptyEnv).reset(seed=seed)
 
-        # The value function works on observations, while we can only generate the states
-        # Minigrid doesnt supply a convenient way to do this, so we have to build it ourselves
-
-
+        # Check if the user has set an agent manually
         if self.agent == None:
             raise UnboundLocalError("You have to set self.agent to the agent that's trained to allow for proximal curriculum learning.")
+
 
         # Now set starting state
         pick_starting_state(
             value_function=self.agent,  # TODO: set this properly
             novelty_function=lambda _: 0,  # TODO: set this properly
-            state_candidates=[],
+            state_candidates=self.generate_state_candidates(),
             state_to_obs=StateToObs,  # type: ignore  # this is a Callable but LSP doesn't know
             beta_proximal=0,
             gamma_tradeoff=0,
