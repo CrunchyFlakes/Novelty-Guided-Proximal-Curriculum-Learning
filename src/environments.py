@@ -34,7 +34,13 @@ class ProxCurrEmptyEnv(EmptyEnv):
         def __call__(self, state: tuple[tuple[int, int], int]) -> torch.Tensor:
             self.env.agent_pos = state[0]
             self.env.agent_dir = state[1]
-            return obs_as_tensor(self.wrapped_env.observation(self.env.gen_obs()), device="cpu").permute(2, 0, 1).unsqueeze(0)  # TODO: set device properly
+            return (
+                obs_as_tensor(
+                    self.wrapped_env.observation(self.env.gen_obs()), device="cpu"
+                )
+                .permute(2, 0, 1)
+                .unsqueeze(0)
+            )  # TODO: set device properly
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
