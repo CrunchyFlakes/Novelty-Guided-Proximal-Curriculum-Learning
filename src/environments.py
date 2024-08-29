@@ -1,9 +1,12 @@
 import gymnasium as gym
 import numpy as np
 from minigrid.envs import EmptyEnv
+from minigrid.wrappers import ImgObsWrapper
 from stable_baselines3.common.on_policy_algorithm import OnPolicyAlgorithm
+from stable_baselines3.common.utils import obs_as_tensor
 from gymnasium.core import ObsType
-from logic import pick_starting_state
+from .logic import pick_starting_state
+import torch
 
 from itertools import product
 from typing import Any, Callable
@@ -23,14 +26,19 @@ class ProxCurrEmptyEnv(EmptyEnv):
             env: The environment which is (ab)used to calculate observation
         """
 
-        def __init__(self):
-            self.env = EmptyEnv()
-            self.env.reset()
+        def __init__(self, *args, **kwargs):
+            self.env = EmptyEnv(*args, **kwargs)
+            self.wrapped_env = ImgObsWrapper(self.env)
+            self.wrapped_env.reset()
 
-        def __call__(self, state: tuple[tuple[int, int], int]) -> ObsType:
+        def __call__(self, state: tuple[tuple[int, int], int]) -> torch.Tensor:
             self.env.agent_pos = state[0]
             self.env.agent_dir = state[1]
-            return self.env.get_obs()
+            return obs_as_tensor(self.wrapped_env.observation(self.env.gen_obs()), device="cpu").permute(2, 0, 1).unsqueeze(0)  # TODO: set device properly
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.state_to_obs = ProxCurrEmptyEnv.StateToObs(*args, **kwargs)
 
     def set_agent(self, agent: OnPolicyAlgorithm) -> None:
         """Set Agent inside of env to be able to pick starting states
@@ -68,7 +76,7 @@ class ProxCurrEmptyEnv(EmptyEnv):
         Returns:
             observation and info dict
         """
-        _ = super(EmptyEnv).reset(seed=seed)
+        _ = super().reset(seed=seed)
 
         if self.agent == None:  # Check if the user has set an agent manually
             raise UnboundLocalError(
@@ -76,16 +84,16 @@ class ProxCurrEmptyEnv(EmptyEnv):
             )
 
         try:
-            value_function: Callable = (self.agent.policy.predict_values,)  # type: ignore  # lsp gets type wrong for some reason
+            value_function: Callable = self.agent.policy.predict_values  # type: ignore  # lsp gets type wrong for some reason
         except:
             raise ValueError("Bound agent does not use ActorCriticPolicy")
 
         # Now set starting state
-        pick_starting_state(
+        starting_pos, starting_dir = pick_starting_state(
             value_function=value_function,
             novelty_function=lambda _: 0,  # TODO: set this properly
             state_candidates=self.generate_state_candidates(),
-            state_to_obs=StateToObs,  # type: ignore  # this is a Callable but LSP doesn't know
+            state_to_obs=self.state_to_obs,  # type: ignore  # this is a Callable but LSP doesn't know
             beta_proximal=(
                 options["beta_proximal"]
                 if options and "beta_proximal" in options
@@ -94,11 +102,13 @@ class ProxCurrEmptyEnv(EmptyEnv):
             gamma_tradeoff=(
                 options["gamma_tradeoff"]
                 if options and "gamma_tradeoff" in options
-                else 0.5
+                else 0
             ),
         )
+        self.agent_pos = starting_pos
+        self.agent_dir = starting_dir
 
         # Return first observation
-        obs = super(EmptyEnv).gen_obs()
+        obs = super().gen_obs()
 
         return obs, {}
