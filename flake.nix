@@ -20,7 +20,7 @@
       };
 
       devShells.default = let
-        pythonPackages = pkgs.python311Packages;
+        pythonPackages = pkgs.python312Packages;
       in pkgs.mkShell rec {
         venvDir = "./.venv";
         NIX_LD_LIBRARY_PATH = lib.makeLibraryPath (with pkgs; [
