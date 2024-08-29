@@ -13,7 +13,7 @@ from typing import Any, Callable
 # +--------------------------------------------------------------------------------------------+
 
 
-def ProxCurrEmptyEnv(EmptyEnv):
+class ProxCurrEmptyEnv(EmptyEnv):
     class StateToObs:
         """Provide somewhat efficient implementation of converting a state in Minigrid to an observation
 
