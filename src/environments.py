@@ -6,7 +6,7 @@ from gymnasium.core import ObsType
 from logic import pick_starting_state
 
 from itertools import product
-from typing import Optional, Any
+from typing import Any, Callable
 
 # +--------------------------------------------------------------------------------------------+
 # | All classes here act as a wrapper to allow for curriculum learning based on starting state |
@@ -69,14 +69,17 @@ def ProxCurrEmptyEnv(EmptyEnv):
         """
         default_obs, info = super(EmptyEnv).reset(seed=seed)
 
-        # Check if the user has set an agent manually
-        if self.agent == None:
+        if self.agent == None:  # Check if the user has set an agent manually
             raise UnboundLocalError("You have to set self.agent to the agent that's trained to allow for proximal curriculum learning.")
 
+        try:
+            value_function: Callable = self.agent.policy.predict_values,  # type: ignore  # lsp gets type wrong for some reason
+        except:
+            raise ValueError("Bound agent does not use ActorCriticPolicy")
 
         # Now set starting state
         pick_starting_state(
-            value_function=self.agent,  # TODO: set this properly
+            value_function=value_function,
             novelty_function=lambda _: 0,  # TODO: set this properly
             state_candidates=self.generate_state_candidates(),
             state_to_obs=StateToObs,  # type: ignore  # this is a Callable but LSP doesn't know
