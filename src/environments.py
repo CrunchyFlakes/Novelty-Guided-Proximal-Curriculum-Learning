@@ -14,14 +14,15 @@ from typing import Any, Callable
 
 
 def ProxCurrEmptyEnv(EmptyEnv):
-    class StateToObs():
-        """ Provide somewhat efficient implementation of converting a state in Minigrid to an observation
+    class StateToObs:
+        """Provide somewhat efficient implementation of converting a state in Minigrid to an observation
 
         It may be possible to use the EmptyEnv class itself, but just to be sure to not mess anything up we create a second class here for peace of mind
 
         Attributes:
             env: The environment which is (ab)used to calculate observation
         """
+
         def __init__(self):
             self.env = EmptyEnv()
             self.env.reset()
@@ -32,7 +33,7 @@ def ProxCurrEmptyEnv(EmptyEnv):
             return self.env.get_obs()
 
     def set_agent(self, agent: OnPolicyAlgorithm) -> None:
-        """ Set Agent inside of env to be able to pick starting states
+        """Set Agent inside of env to be able to pick starting states
 
         Args:
             agent: Stable baselines OnPolicyAlgorithm
@@ -41,7 +42,7 @@ def ProxCurrEmptyEnv(EmptyEnv):
         return
 
     def generate_state_candidates(self) -> list[tuple[tuple[int, int], int]]:
-        """ Generate all states that the agent could be in in this environment
+        """Generate all states that the agent could be in in this environment
 
         Returns:
             list of states
@@ -58,7 +59,7 @@ def ProxCurrEmptyEnv(EmptyEnv):
         seed: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> tuple[ObsType, dict[str, Any]]:
-        """ Reset Environment, while picking starting state based on proximal curriculum
+        """Reset Environment, while picking starting state based on proximal curriculum
 
         Args:
             seed: seed to initialize env
@@ -67,13 +68,15 @@ def ProxCurrEmptyEnv(EmptyEnv):
         Returns:
             observation and info dict
         """
-        default_obs, info = super(EmptyEnv).reset(seed=seed)
+        _ = super(EmptyEnv).reset(seed=seed)
 
         if self.agent == None:  # Check if the user has set an agent manually
-            raise UnboundLocalError("You have to set self.agent to the agent that's trained to allow for proximal curriculum learning.")
+            raise UnboundLocalError(
+                "You have to set self.agent to the agent that's trained to allow for proximal curriculum learning."
+            )
 
         try:
-            value_function: Callable = self.agent.policy.predict_values,  # type: ignore  # lsp gets type wrong for some reason
+            value_function: Callable = (self.agent.policy.predict_values,)  # type: ignore  # lsp gets type wrong for some reason
         except:
             raise ValueError("Bound agent does not use ActorCriticPolicy")
 
@@ -83,8 +86,16 @@ def ProxCurrEmptyEnv(EmptyEnv):
             novelty_function=lambda _: 0,  # TODO: set this properly
             state_candidates=self.generate_state_candidates(),
             state_to_obs=StateToObs,  # type: ignore  # this is a Callable but LSP doesn't know
-            beta_proximal=options["beta_proximal"] if options and "beta_proximal" in options else 1,
-            gamma_tradeoff=options["gamma_tradeoff"] if options and "gamma_tradeoff" in options else 0.5,
+            beta_proximal=(
+                options["beta_proximal"]
+                if options and "beta_proximal" in options
+                else 1
+            ),
+            gamma_tradeoff=(
+                options["gamma_tradeoff"]
+                if options and "gamma_tradeoff" in options
+                else 0.5
+            ),
         )
 
         # Return first observation
