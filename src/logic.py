@@ -10,19 +10,21 @@ type Number = float | int | np.number  # TODO: add more?
 # +------------------------+
 
 def pick_starting_state(value_function: Callable[[State], Number], novelty_function: Callable[[State], Number], state_candidates: Iterable[State], state_to_obs: Callable[[State], ObsType], beta_proximal: Number, gamma_tradeoff: Number) -> State:
-    state_candidates = np.array(state_candidates)
-    assert len(state_candidates.shape) == 1  # only list of states
+    state_candidates = list(state_candidates)
     # Calculate distribution over starting states based on probability of success
-    state_pos = np.array([beta_proximal * value * (1 - value) for value in map(value_function, map(state_to_obs, state_candidates))])
-    pos_dist = state_pos / np.sum(state_pos)
+    state_values = np.array([value_function(obs).detach().item() for obs in map(state_to_obs, state_candidates)])
+    normalized_state_values = (state_values - np.min(state_values)) / (np.max(state_values) - np.min(state_values))
+    pos_estimates = beta_proximal * normalized_state_values * (1 - normalized_state_values)
+    pos_dist = pos_estimates / np.sum(pos_estimates)
 
     # Calculate distribution over starting states based on state novelty
     state_novelty = np.array([novelty_function(state) for state in state_candidates])
     novelty_dist = state_novelty / np.sum(state_novelty)
+    novelty_dist = pos_dist
 
     combined_dist = gamma_tradeoff * pos_dist + (1 - gamma_tradeoff) * novelty_dist
 
-    return np.random.choice(state_candidates, p=combined_dist)
+    return state_candidates[np.random.choice(len(state_candidates), p=combined_dist)]
 
 
 # +--------------------------+
