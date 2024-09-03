@@ -1,6 +1,9 @@
 from typing import Callable, Any, Iterable
 import numpy as np
 from gymnasium.core import ObsType
+from ConfigSpace import Configuration
+import torch
+from torch import nn
 
 type State = Any  # TODO: placeholder, replace it
 type Number = float | int | np.number  # TODO: add more?
@@ -47,3 +50,8 @@ def pick_starting_state(
 # +--------------------------+
 # | State Novelty Approaches |
 # +--------------------------+
+
+# Random Network Distillation
+class RND():
+    def __init__(self, layers: Iterable[int]):
+        pass
