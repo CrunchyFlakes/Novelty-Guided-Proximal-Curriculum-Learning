@@ -31,14 +31,20 @@ def get_config_for_module(cfg: Configuration, module_name: str) -> dict[str, Any
     return cfg_module
 
 def train(config: Configuration, seed: int = 0) -> tuple[float, float]:
+    config_ppo = get_config_for_module(config, "sb_ppo")
+    config_approach = get_config_for_module(config, "approach")
+
     env_base = Monitor(ImgObsWrapper(EmptyEnv()))
-    env = ImgObsWrapper(ProxCurrEmptyEnv())
-    model = PPO("MlpPolicy", env=env, **dict(get_config_for_module(config, "sb_ppo")))
-    env.unwrapped.set_agent(model)  # type: ignore
-    env.unwrapped.setup_start_state_picking(get_config_for_module(config, "approach"))  # type: ignore
-    env.reset()
+    env = ImgObsWrapper(ProxCurrEmptyEnv()) if len(config_approach) > 0 else ImgObsWrapper(EmptyEnv())
+    model = PPO("MlpPolicy", env=env, **dict())
+    if len(config_approach) > 0:
+        env.unwrapped.set_agent(model)  # type: ignore
+        env.unwrapped.setup_start_state_picking(get_config_for_module(config, "approach"))  # type: ignore
+    env.reset()  # workaround for minigrid bug
+
     evaluate = lambda model: evaluate_policy(model, env_base, n_eval_episodes=10)[0]  # [0] -> only return mean score and not variance
     score, timesteps_left = learn(model, evaluate, timesteps=100_000, eval_every_n_steps=10000, early_terminate=True, early_termination_threshold=0.9)
+
     return -score, -timesteps_left  # prioritize score over timesteps
 
 

@@ -23,8 +23,6 @@ def get_ppo_config_space(use_prox_curr: bool = True, use_state_novelty: bool = T
     configspace_approach = ConfigurationSpace({})
     if use_prox_curr:
         configspace_approach.add(Float("beta_proximal", (0.0, 1.0), default=0.5))  # this default is guessed
-    else:  # dummy value
-        configspace_approach.add(Constant("beta_proximal", 0.0))
     if use_prox_curr and use_state_novelty:
         configspace_approach.add(Float("gamma_tradeoff", (0.0, 1.0), default=0.5))
     elif use_prox_curr:
