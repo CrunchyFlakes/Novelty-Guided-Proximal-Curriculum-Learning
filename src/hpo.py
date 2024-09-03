@@ -1,4 +1,4 @@
-from ConfigSpace import ConfigurationSpace, Float, Integer, Constant
+from ConfigSpace import ConfigurationSpace, Float, Integer, Constant, EqualsCondition, Categorical, AndConjunction, GreaterThanCondition
 
 
 def get_ppo_config_space(use_prox_curr: bool = True, use_state_novelty: bool = True) -> ConfigurationSpace:
@@ -30,8 +30,28 @@ def get_ppo_config_space(use_prox_curr: bool = True, use_state_novelty: bool = T
     elif use_state_novelty:
         configspace_approach.add(Constant("gamma_tradeoff", 0.0))
 
-    # TOOD: There may be hyperparameters for state novelty later on
+
+    # Additional state novelty hyperparameters per algorithm
+    novelty_approach = Constant("novelty_approach", "rnd")
+    ## Random Network Distillation
+    rnd_loss = Constant("rnd_loss", "mse")
+    rnd_loss_cond = EqualsCondition(rnd_loss, novelty_approach, "rnd")
+    rnd_activation = Categorical("rnd_activation", ("relu", "leakyrelu"), default="relu")
+    rnd_activation_cond = EqualsCondition(rnd_activation, novelty_approach, "rnd")
+    rnd_learning_rate = Float("rnd_learning_rate", (1.0e-6, 1.0), default=1e-3, log=True)
+    rnd_learning_rate_cond = EqualsCondition(rnd_learning_rate, novelty_approach, "rnd")
+    rnd_optimizer = Constant("rnd_optimizer", "adam")
+    rnd_optimizer_cond = EqualsCondition(rnd_optimizer, novelty_approach, "rnd")
+    configspace_approach.add((rnd_loss, rnd_loss_cond, rnd_activation, rnd_activation_cond, rnd_learning_rate, rnd_learning_rate_cond, rnd_optimizer, rnd_optimizer_cond,))
+    ### layer sizes
+    max_layers = 5
+    rnd_n_layers = Integer("rnd_n_layers", (1, max_layers), default=2)
+    rnd_layersizes = [Integer(f"rnd_layer{i}_size", (1, 128), default=32) for i in range(max_layers)]
+    rnd_layersize_conds = [GreaterThanCondition(rnd_layersizes[i], rnd_n_layers, i) for i in range(1, max_layers)]
+    configspace_approach.add((rnd_n_layers, *rnd_layersizes, *rnd_layersize_conds))
     
+
+    # combine everything together
     cs = ConfigurationSpace({})
     cs.add_configuration_space(prefix="sb_ppo", configuration_space=configspace_sb_ppo)
     cs.add_configuration_space(prefix="approach", configuration_space=configspace_approach)
