@@ -31,8 +31,8 @@ def train(config: Configuration, seed: int = 0) -> tuple[float, float]:
     env_base = ImgObsWrapper(EmptyEnv())
     env = ImgObsWrapper(ProxCurrEmptyEnv())
     model = PPO("MlpPolicy", env=env, **dict(get_config_for_module(config, "sb_ppo")))
-    env.unwrapped.set_agent(model)
-    env.unwrapped.setup_start_state_picking(get_config_for_module(config, "approach"))
+    env.unwrapped.set_agent(model)  # type: ignore
+    env.unwrapped.setup_start_state_picking(get_config_for_module(config, "approach"))  # type: ignore
     env.reset()
     evaluate = lambda model: evaluate_policy(model, env_base, n_eval_episodes=10)[0]  # [0] -> only return mean score and not variance
     score, timesteps_left = learn(model, evaluate, timesteps=100_000, eval_every_n_steps=10000, early_terminate=True, early_termination_threshold=0.9)

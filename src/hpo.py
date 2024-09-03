@@ -7,8 +7,8 @@ def get_ppo_config_space(use_prox_curr: bool = True, use_state_novelty: bool = T
     configspace_sb_ppo =  ConfigurationSpace({
         "learning_rate": Float("learning_rate", (1.0e-6, 1.0), default=0.0003, log=True),
         # number of steps to run environment before update
-        "n_steps": Integer("n_steps", (2, 8192), default=2048),
-        "batch_size": Integer("batch_size", (1, 512), default=64),
+        #"n_steps": Integer("n_steps", (2, 8192), default=2048),
+        #"batch_size": Integer("batch_size", (1, 512), default=64),
         "gamma": Float("gamma", (0.9, 1.0), default=0.99),
         "gae_lambda": Float("gae_lambda", (0.5, 1.0), default=0.95),
         "clip_range": Float("clip_range", (0.0, 1.0), default=0.2),
