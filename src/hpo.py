@@ -20,17 +20,21 @@ def get_ppo_config_space(use_prox_curr: bool = True, use_state_novelty: bool = T
     })
 
     # Hyperparameters needed for proximal curriculum learning with state novelty
+    configspace_approach = ConfigurationSpace({})
     if use_prox_curr:
-        configspace_sb_ppo.add(Float("beta_proximal", (0.0, 1.0), default=0.5))  # this default is guessed
+        configspace_approach.add(Float("beta_proximal", (0.0, 1.0), default=0.5))  # this default is guessed
     else:  # dummy value
-        configspace_sb_ppo.add(Constant("beta_proximal", 0.0))
+        configspace_approach.add(Constant("beta_proximal", 0.0))
     if use_prox_curr and use_state_novelty:
-        configspace_sb_ppo.add(Float("gamma_tradeoff", (0.0, 1.0), default=0.5))
+        configspace_approach.add(Float("gamma_tradeoff", (0.0, 1.0), default=0.5))
     elif use_prox_curr:
-        configspace_sb_ppo.add(Constant("gamma_tradeoff", 1.0))
+        configspace_approach.add(Constant("gamma_tradeoff", 1.0))
     elif use_state_novelty:
-        configspace_sb_ppo.add(Constant("gamma_tradeoff", 0.0))
+        configspace_approach.add(Constant("gamma_tradeoff", 0.0))
 
     # TOOD: There may be hyperparameters for state novelty later on
     
-    return configspace_sb_ppo
+    cs = ConfigurationSpace({})
+    cs.add_configuration_space(prefix="sb_ppo", configuration_space=configspace_sb_ppo)
+    cs.add_configuration_space(prefix="approach", configuration_space=configspace_approach)
+    return cs
