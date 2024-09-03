@@ -39,7 +39,7 @@ def train(config: Configuration, seed: int = 0) -> tuple[float, float]:
     env.reset()
     evaluate = lambda model: evaluate_policy(model, env_base, n_eval_episodes=10)[0]  # [0] -> only return mean score and not variance
     score, timesteps_left = learn(model, evaluate, timesteps=100_000, eval_every_n_steps=10000, early_terminate=True, early_termination_threshold=0.9)
-    return score, timesteps_left  # prioritize score over timesteps
+    return -score, -timesteps_left  # prioritize score over timesteps
 
 
 def learn(model: OnPolicyAlgorithm, evaluate: Callable[[OnPolicyAlgorithm], Any], timesteps: int, eval_every_n_steps: int, early_terminate: bool = False, early_termination_threshold: float = 0.0) -> tuple[int, float]:
