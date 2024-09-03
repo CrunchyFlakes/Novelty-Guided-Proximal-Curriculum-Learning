@@ -53,5 +53,45 @@ def pick_starting_state(
 
 # Random Network Distillation
 class RND():
-    def __init__(self, layers: Iterable[int]):
-        pass
+    def __init__(self, layers_fixed: list[int], layers_learned: list[int], loss: str, learning_rate: float, activation_function: str, optimizer: str):
+        match activation_function.lower():
+            case "relu":
+                activation_class = nn.ReLU
+            case "leakyrelu":
+                activation_class = nn.LeakyReLU
+            case _:
+                raise NotImplementedError(f"activation function \"{activation_function}\" not implemented.")
+
+        match loss.lower():
+            case "mse":
+                self.loss_function = nn.MSELoss()
+                # We need an extra loss without reduction to return
+                self.loss_novelty = nn.MSELoss(reduction = "None")
+            case _:
+                raise NotImplementedError(f"loss \"{loss}\" not implemented.")
+
+        self.layers_fixed = nn.Sequential(
+            *[nn.Sequential(nn.Linear(in_features, out_features), activation_class()) for in_features, out_features in zip(layers_fixed[:-1], layers_fixed[1:])]
+        )
+        self.layers_learned = nn.Sequential(
+            *[nn.Sequential(nn.Linear(in_features, out_features), activation_class()) for in_features, out_features in zip(layers_learned[:-1], layers_learned[1:])]
+        )
+
+        match optimizer.lower():
+            case "adam":
+                self.optimizer = torch.optim.Adam(self.layers_learned.parameters(), lr=learning_rate)  # type: ignore  # unresolved import bug in pytorch, only affects pyright (lsp)
+
+
+    def __call__(self, input: torch.Tensor, learn_network: bool = True) -> torch.Tensor:
+        self.optimizer.zero_grad()
+
+        with torch.no_grad():
+            out_fixed = self.layers_fixed(input)
+        out_learned = self.layers_learned(input)
+
+        if learn_network:
+            loss = self.loss_function(out_learned, out_fixed)
+            loss.backward()
+            self.optimizer.step()
+
+        return self.loss_novelty(out_learned, out_fixed).detach().clone()
