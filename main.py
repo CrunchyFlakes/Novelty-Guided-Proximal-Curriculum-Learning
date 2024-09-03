@@ -2,6 +2,7 @@ import gymnasium as gym
 from stable_baselines3 import PPO
 from stable_baselines3.common.on_policy_algorithm import OnPolicyAlgorithm
 from stable_baselines3.common.evaluation import evaluate_policy
+from stable_baselines3.common.monitor import Monitor
 from src.environments import ProxCurrEmptyEnv
 from src.hpo import get_ppo_config_space
 from minigrid.envs import EmptyEnv
@@ -28,7 +29,7 @@ def get_config_for_module(cfg: Configuration, module_name: str) -> dict[str, Any
     return cfg_module
 
 def train(config: Configuration, seed: int = 0) -> tuple[float, float]:
-    env_base = ImgObsWrapper(EmptyEnv())
+    env_base = Monitor(ImgObsWrapper(EmptyEnv()))
     env = ImgObsWrapper(ProxCurrEmptyEnv())
     model = PPO("MlpPolicy", env=env, **dict(get_config_for_module(config, "sb_ppo")))
     env.unwrapped.set_agent(model)  # type: ignore
@@ -54,7 +55,9 @@ def learn(model: OnPolicyAlgorithm, evaluate: Callable[[OnPolicyAlgorithm], Any]
     return score, timesteps_left
 
 
-configspace = get_ppo_config_space(use_state_novelty=False)
-scenario = Scenario(configspace, deterministic=True, n_trials=20)
-smac = HyperparameterOptimizationFacade(scenario, train)
-incumbent = smac.optimize()
+if __name__ == "__main__":
+    configspace = get_ppo_config_space(use_state_novelty=False)
+    scenario = Scenario(configspace, deterministic=True, n_trials=50, n_workers=10)
+    smac = HyperparameterOptimizationFacade(scenario, train)
+    incumbent = smac.optimize()
+    print(incumbent)

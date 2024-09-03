@@ -5,7 +5,7 @@ def get_ppo_config_space(use_prox_curr: bool = True, use_state_novelty: bool = T
     # Default values are taken from stable baselines ppo algorithm
     # This part only covers the stable_baselines hyperparemeters
     configspace_sb_ppo =  ConfigurationSpace({
-        "learning_rate": Float("learning_rate", (1.0e-6, 1.0), default=0.0003, log=True),
+        "learning_rate": Float("learning_rate", (1.0e-6, 1.0e-2), default=0.0003, log=True),
         # number of steps to run environment before update
         #"n_steps": Integer("n_steps", (2, 8192), default=2048),
         #"batch_size": Integer("batch_size", (1, 512), default=64),
