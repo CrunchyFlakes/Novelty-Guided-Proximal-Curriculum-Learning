@@ -7,6 +7,7 @@ from stable_baselines3.common.utils import obs_as_tensor
 from gymnasium.core import ObsType
 from .logic import pick_starting_state
 import torch
+from ConfigSpace import Configuration
 
 from itertools import product
 from typing import Any, Callable
@@ -67,6 +68,10 @@ class ProxCurrEmptyEnv(EmptyEnv):
 
         return list(product(valid_positions, directions))
 
+    def setup_start_state_picking(self, config: Configuration):
+        self.beta_proximal = config["beta_proximal"]
+        self.gamma_tradeoff = config["gamma_tradeoff"]
+
     def reset(
         self,
         *,
@@ -97,18 +102,14 @@ class ProxCurrEmptyEnv(EmptyEnv):
         # Now set starting state
         starting_pos, starting_dir = pick_starting_state(
             value_function=value_function,
-            novelty_function=lambda _: 0,  # TODO: set this properly
+            novelty_function=lambda _: 1,  # TODO: set this properly
             state_candidates=self.generate_state_candidates(),
             state_to_obs=self.state_to_obs,  # type: ignore  # this is a Callable but LSP doesn't know
             beta_proximal=(
-                options["beta_proximal"]
-                if options and "beta_proximal" in options
-                else 1
+                self.beta_proximal
             ),
             gamma_tradeoff=(
-                options["gamma_tradeoff"]
-                if options and "gamma_tradeoff" in options
-                else 0
+                self.gamma_tradeoff
             ),
         )
         self.agent_pos = starting_pos
