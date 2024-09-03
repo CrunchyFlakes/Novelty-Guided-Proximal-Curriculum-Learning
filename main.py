@@ -12,6 +12,8 @@ from smac import HyperparameterOptimizationFacade, Scenario
 from ConfigSpace import Configuration, ConfigurationSpace
 
 from typing import Callable, Any
+import logging
+
 
 def get_config_for_module(cfg: Configuration, module_name: str) -> dict[str, Any]:
     """
@@ -56,8 +58,60 @@ def learn(model: OnPolicyAlgorithm, evaluate: Callable[[OnPolicyAlgorithm], Any]
 
 
 if __name__ == "__main__":
-    configspace = get_ppo_config_space(use_state_novelty=False)
-    scenario = Scenario(configspace, deterministic=True, n_trials=50, n_workers=10)
-    smac = HyperparameterOptimizationFacade(scenario, train)
-    incumbent = smac.optimize()
-    print(incumbent)
+    logging.basicConfig()
+    logging.root.setLevel(logging.INFO)
+    logger = logging.getLogger(__name__)
+
+    scenario_params = {
+        "n_trials": 20,
+        "n_workers": 10,
+        "use_default_config": True,
+    }
+
+    # Train vanilla model
+    configspace_vanilla = get_ppo_config_space(use_prox_curr=False, use_state_novelty=False)
+    scenario_vanilla = Scenario(configspace_vanilla, **scenario_params)
+    smac_vanilla = HyperparameterOptimizationFacade(scenario_vanilla, train)
+    incumbent_vanilla: Configuration = smac_vanilla.optimize()  # type: ignore  # type fixed in next two lines
+    if incumbent_vanilla is list:
+        incumbent_vanilla = incumbent_vanilla[0]
+    logger.info(f"Gotten Incumbent for Vanilla Approach: {incumbent_vanilla}")
+    train_result_vanilla = train(incumbent_vanilla)
+    logger.info(f"Score: {train_result_vanilla[0]}, Timesteps left: {train_result_vanilla[1]}")
+
+
+    # Train Model with Proximal Curriculum
+    logger.info(f"Now training Proximal Curriculum Model")
+    configspace_prox = get_ppo_config_space(use_prox_curr=True, use_state_novelty=False)
+    scenario_prox = Scenario(configspace_prox, **scenario_params)
+    smac_prox = HyperparameterOptimizationFacade(scenario_prox, train)
+    incumbent_prox: Configuration = smac_prox.optimize()  # type: ignore  # type fixed in next two lines
+    if incumbent_prox is list:
+        incumbent_prox = incumbent_prox[0]
+    logger.info(f"Gotten Incumbent for Proximal Curriculum: {incumbent_prox}")
+    train_result_prox = train(incumbent_prox)
+    logger.info(f"Score: {train_result_prox[0]}, Timesteps left: {train_result_prox[1]}")
+
+
+    # Train Model with Proximal Curriculum and State Novelty
+    configspace_comb = get_ppo_config_space(use_prox_curr=True, use_state_novelty=True)
+    scenario_comb = Scenario(configspace_comb, **scenario_params)
+    smac_comb = HyperparameterOptimizationFacade(scenario_comb, train)
+    incumbent_comb: Configuration = smac_comb.optimize()  # type: ignore  # type fixed in next two lines
+    if incumbent_comb is list:
+        incumbent_comb = incumbent_comb[0]
+    logger.info(f"Gotten Incumbent for Combined Approach: {incumbent_comb}")
+    train_result_comb = train(incumbent_comb)
+    logger.info(f"Score: {train_result_comb[0]}, Timesteps left: {train_result_comb[1]}")
+
+
+    # Train model with State Novelty
+    configspace_nov = get_ppo_config_space(use_prox_curr=False, use_state_novelty=True)
+    scenario_nov = Scenario(configspace_nov, **scenario_params)
+    smac_nov = HyperparameterOptimizationFacade(scenario_nov, train)
+    incumbent_nov: Configuration = smac_nov.optimize()  # type: ignore  # type fixed in next two lines
+    if incumbent_nov is list:
+        incumbent_nov = incumbent_nov[0]
+    logger.info(f"Gotten Incumbent for State Novelty Approach: {incumbent_nov}")
+    train_result_nov = train(incumbent_nov)
+    logger.info(f"Score: {train_result_nov[0]}, Timesteps left: {train_result_nov[1]}")
