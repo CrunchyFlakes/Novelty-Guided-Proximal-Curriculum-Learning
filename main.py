@@ -13,6 +13,7 @@ from ConfigSpace import Configuration, ConfigurationSpace
 
 from typing import Callable, Any
 import logging
+import multiprocessing
 
 
 def get_config_for_module(cfg: Configuration, module_name: str) -> dict[str, Any]:
@@ -70,7 +71,7 @@ if __name__ == "__main__":
 
     scenario_params = {
         "n_trials": 20,
-        "n_workers": 10,
+        "n_workers": multiprocessing.cpu_count() - 1,  # -1 to have resources for other stuff
         "use_default_config": True,
     }
 
