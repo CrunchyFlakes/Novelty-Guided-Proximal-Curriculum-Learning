@@ -36,7 +36,7 @@ def train(config: Configuration, seed: int = 0) -> tuple[float, float]:
 
     env_base = Monitor(ImgObsWrapper(EmptyEnv()))
     env = ImgObsWrapper(ProxCurrEmptyEnv()) if len(config_approach) > 0 else ImgObsWrapper(EmptyEnv())
-    model = PPO("MlpPolicy", env=env, **dict())
+    model = PPO("MlpPolicy", env=env, **dict(config_ppo))
     if len(config_approach) > 0:
         env.unwrapped.set_agent(model)  # type: ignore
         env.unwrapped.setup_start_state_picking(get_config_for_module(config, "approach"))  # type: ignore
@@ -58,7 +58,7 @@ def learn(model: OnPolicyAlgorithm, evaluate: Callable[[OnPolicyAlgorithm], Any]
         timesteps_left -= steps_to_learn
 
         score = evaluate(model)
-        if score >= early_termination_threshold:
+        if score >= early_termination_threshold and early_terminate:
             break
     return score, timesteps_left
 
