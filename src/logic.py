@@ -5,6 +5,9 @@ from ConfigSpace import Configuration
 import torch
 from torch import nn
 
+import logging
+logger = logging.getLogger(__name__)
+
 type State = Any  # TODO: placeholder, replace it
 type Number = float | int | np.number  # TODO: add more?
 
@@ -15,18 +18,19 @@ type Number = float | int | np.number  # TODO: add more?
 
 def pick_starting_state(
     value_function: Callable[[State], Number],
-    novelty_function: Callable[[State], Number],
+    novelty_function: Callable[[torch.Tensor], torch.Tensor],
     state_candidates: Iterable[State],
     state_to_obs: Callable[[State], ObsType],
     beta_proximal: Number,
     gamma_tradeoff: Number,
 ) -> State:
     state_candidates = list(state_candidates)
+    states_as_obs = list(map(state_to_obs, state_candidates))
     # Calculate distribution over starting states based on probability of success
     state_values = np.array(
         [
             value_function(obs).detach().item()
-            for obs in map(state_to_obs, state_candidates)
+            for obs in states_as_obs
         ]
     )
     normalized_state_values = (state_values - np.min(state_values)) / (
@@ -35,10 +39,13 @@ def pick_starting_state(
     pos_estimates = (
         beta_proximal * normalized_state_values * (1 - normalized_state_values)
     )
+    if np.sum(pos_estimates) == 0:
+        logger.warn("sum of pos_estimates is 0")
+        pos_estimates += 1
     pos_dist = pos_estimates / np.sum(pos_estimates)
 
     # Calculate distribution over starting states based on state novelty
-    state_novelty = np.array([novelty_function(state) for state in state_candidates])
+    state_novelty = novelty_function(torch.stack(list(map(torch.flatten, states_as_obs))).to(torch.float32)).detach().clone().numpy()
     novelty_dist = state_novelty / np.sum(state_novelty)
     novelty_dist = pos_dist
 
@@ -66,7 +73,7 @@ class RND():
             case "mse":
                 self.loss_function = nn.MSELoss()
                 # We need an extra loss without reduction to return
-                self.loss_novelty = nn.MSELoss(reduction = "None")
+                self.loss_novelty = nn.MSELoss(reduction = "none")
             case _:
                 raise NotImplementedError(f"loss \"{loss}\" not implemented.")
 

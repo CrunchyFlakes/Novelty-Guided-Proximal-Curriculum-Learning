@@ -5,6 +5,7 @@ from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.monitor import Monitor
 from src.environments import ProxCurrEmptyEnv
 from src.hpo import get_ppo_config_space
+from src.util import get_novelty_function
 from minigrid.envs import EmptyEnv
 from minigrid.wrappers import ImgObsWrapper
 
@@ -36,11 +37,13 @@ def train(config: Configuration, seed: int = 0) -> tuple[float, float]:
     config_approach = get_config_for_module(config, "approach")
 
     env_base = Monitor(ImgObsWrapper(EmptyEnv()))
-    env = ImgObsWrapper(ProxCurrEmptyEnv()) if bool(config_approach["use_prox_curr"]) or bool(config_approach["use_state_novelty"]) else ImgObsWrapper(EmptyEnv())
+    env = ImgObsWrapper(ProxCurrEmptyEnv()) if config_approach["use_prox_curr"] == "True" or config_approach["use_state_novelty"] == "True" else ImgObsWrapper(EmptyEnv())
     model = PPO("MlpPolicy", env=env, **dict(config_ppo))
-    if bool(config_approach["use_prox_curr"]) or bool(config_approach["use_state_novelty"]):
+    if config_approach["use_prox_curr"] == "True" or config_approach["use_state_novelty"] == "True":
         env.unwrapped.set_agent(model)  # type: ignore
-        env.unwrapped.setup_start_state_picking(get_config_for_module(config, "approach"))  # type: ignore
+        # Have to get the novelty function here and not inside "setup_start_state_picking", because it has to see the wrapper
+        novelty_function = get_novelty_function(config_approach, env)
+        env.unwrapped.setup_start_state_picking(config_approach, novelty_function)  # type: ignore
     env.reset()  # workaround for minigrid bug
 
     evaluate = lambda model: evaluate_policy(model, env_base, n_eval_episodes=10)[0]  # [0] -> only return mean score and not variance
