@@ -36,9 +36,9 @@ def train(config: Configuration, seed: int = 0) -> tuple[float, float]:
     config_approach = get_config_for_module(config, "approach")
 
     env_base = Monitor(ImgObsWrapper(EmptyEnv()))
-    env = ImgObsWrapper(ProxCurrEmptyEnv()) if len(config_approach) > 0 else ImgObsWrapper(EmptyEnv())
+    env = ImgObsWrapper(ProxCurrEmptyEnv()) if bool(config_approach["use_prox_curr"]) or bool(config_approach["use_state_novelty"]) else ImgObsWrapper(EmptyEnv())
     model = PPO("MlpPolicy", env=env, **dict(config_ppo))
-    if len(config_approach) > 0:
+    if bool(config_approach["use_prox_curr"]) or bool(config_approach["use_state_novelty"]):
         env.unwrapped.set_agent(model)  # type: ignore
         env.unwrapped.setup_start_state_picking(get_config_for_module(config, "approach"))  # type: ignore
     env.reset()  # workaround for minigrid bug

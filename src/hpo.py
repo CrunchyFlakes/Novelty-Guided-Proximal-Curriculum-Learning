@@ -21,8 +21,9 @@ def get_ppo_config_space(use_prox_curr: bool = True, use_state_novelty: bool = T
 
     # Hyperparameters needed for proximal curriculum learning with state novelty
     configspace_approach = ConfigurationSpace({
-        "use_prox_curr": Constant("use_prox_curr", use_prox_curr),
-        "use_state_novelty": Constant("use_state_novelty", use_state_novelty)
+        # It is not allowed to use bool values directly in ConfigSpace conditions for some reason, so we have to work around that
+        "use_prox_curr": Constant("use_prox_curr", str(use_prox_curr)),
+        "use_state_novelty": Constant("use_state_novelty", str(use_state_novelty))
     })
     beta_proximal = Float("beta_proximal", (0.0, 1.0), default=0.5)  # this default is guessed
     beta_proximal_cond = EqualsCondition(beta_proximal, configspace_approach["use_prox_curr"], True)
