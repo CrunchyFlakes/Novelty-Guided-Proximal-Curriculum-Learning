@@ -20,9 +20,13 @@ def get_ppo_config_space(use_prox_curr: bool = True, use_state_novelty: bool = T
     })
 
     # Hyperparameters needed for proximal curriculum learning with state novelty
-    configspace_approach = ConfigurationSpace({})
-    if use_prox_curr:
-        configspace_approach.add(Float("beta_proximal", (0.0, 1.0), default=0.5))  # this default is guessed
+    configspace_approach = ConfigurationSpace({
+        "use_prox_curr": Constant("use_prox_curr", use_prox_curr),
+        "use_state_novelty": Constant("use_state_novelty", use_state_novelty)
+    })
+    beta_proximal = Float("beta_proximal", (0.0, 1.0), default=0.5)  # this default is guessed
+    beta_proximal_cond = EqualsCondition(beta_proximal, configspace_approach["use_prox_curr"], True)
+    configspace_approach.add((beta_proximal, beta_proximal_cond))
     if use_prox_curr and use_state_novelty:
         configspace_approach.add(Float("gamma_tradeoff", (0.0, 1.0), default=0.5))
     elif use_prox_curr:
@@ -32,7 +36,7 @@ def get_ppo_config_space(use_prox_curr: bool = True, use_state_novelty: bool = T
 
 
     # Additional state novelty hyperparameters per algorithm
-    novelty_approach = Constant("novelty_approach", "rnd")
+    novelty_approach = Constant("novelty_approach", "rnd" if use_state_novelty else "none")
     ## Random Network Distillation
     rnd_loss = Constant("rnd_loss", "mse")
     rnd_loss_cond = EqualsCondition(rnd_loss, novelty_approach, "rnd")
