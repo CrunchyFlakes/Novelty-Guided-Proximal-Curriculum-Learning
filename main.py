@@ -78,8 +78,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     scenario_params = {
-        "n_trials": args.n_trials,
-        "n_workers": args.n_workers,
+        "n_trials": args.trials,
+        "n_workers": args.workers,
         "use_default_config": True,
     }
 
