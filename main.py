@@ -106,8 +106,9 @@ def learn(model: OnPolicyAlgorithm, timesteps: int, eval_env: gym.Env, eval_ever
         logger.info(f"Model at {timesteps - timesteps_left}/{timesteps} with {score=}")
         if score >= early_termination_threshold and early_terminate:
             break
-    logger.info(f"Model finished with {score=}, {timesteps_left=}")
-    return float(score), timesteps_left, float(np.mean(score_history))
+    mean_score_history = float(np.mean(score_history))
+    logger.info(f"Model finished with {score=}, {timesteps_left=}, {mean_score_history=}")
+    return float(score), timesteps_left, mean_score_history
 
 def evaluate_config(config: Configuration, seed: int = 0):
     pass
