@@ -38,7 +38,9 @@ def target_function(config: Configuration, seed: int = 0, n_seeds: int = 2) -> t
     # Generate seeds
     seeds = np.random.randint(low=0, high=1000, size=n_seeds)
     results = [train(config, seed=train_seed) for train_seed in seeds]
-    return tuple(np.mean(results, axis=0))
+    result = tuple(np.mean(results, axis=0))
+    logger.info(f"Finished evaluating configuration with {result}")
+    return result
 
 def train(config: Configuration, seed: int = 0) -> tuple[float, float]:
     config_ppo = get_config_for_module(config, "sb_ppo")
