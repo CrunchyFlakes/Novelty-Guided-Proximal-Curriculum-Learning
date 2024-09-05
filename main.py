@@ -3,10 +3,10 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.on_policy_algorithm import OnPolicyAlgorithm
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.monitor import Monitor
-from src.environments import ProxCurrEmptyEnv
+from src.environments import get_prox_curr_env
 from src.hpo import get_ppo_config_space
 from src.util import get_novelty_function
-from minigrid.envs import EmptyEnv
+from minigrid.envs import EmptyEnv, DoorKeyEnv
 from minigrid.wrappers import ImgObsWrapper
 import numpy as np
 
@@ -44,8 +44,8 @@ def train(config: Configuration, seed: int = 0) -> tuple[float, float]:
     config_ppo = get_config_for_module(config, "sb_ppo")
     config_approach = get_config_for_module(config, "approach")
 
-    env_base = Monitor(ImgObsWrapper(EmptyEnv()))
-    env = ImgObsWrapper(ProxCurrEmptyEnv()) if config_approach["use_prox_curr"] == "True" or config_approach["use_state_novelty"] == "True" else ImgObsWrapper(EmptyEnv())
+    env_base = Monitor(ImgObsWrapper(DoorKeyEnv(size=5)))
+    env = ImgObsWrapper(get_prox_curr_env(DoorKeyEnv, size=5)) if config_approach["use_prox_curr"] == "True" or config_approach["use_state_novelty"] == "True" else ImgObsWrapper(DoorKeyEnv(size=5))
     model = PPO("MlpPolicy", env=env, **dict(config_ppo))
     if config_approach["use_prox_curr"] == "True" or config_approach["use_state_novelty"] == "True":
         env.unwrapped.set_agent(model)  # type: ignore
@@ -55,7 +55,7 @@ def train(config: Configuration, seed: int = 0) -> tuple[float, float]:
     env.reset()  # workaround for minigrid bug
 
     evaluate = lambda model: evaluate_policy(model, env_base, n_eval_episodes=10)[0]  # [0] -> only return mean score and not variance
-    score, timesteps_left = learn(model, evaluate, timesteps=100_000, eval_every_n_steps=10000, early_terminate=True, early_termination_threshold=0.9)
+    score, timesteps_left = learn(model, evaluate, timesteps=500_000, eval_every_n_steps=10000, early_terminate=True, early_termination_threshold=0.9)
 
     return -score, -timesteps_left  # prioritize score over timesteps
 
