@@ -5,7 +5,6 @@ def get_ppo_config_space(use_prox_curr: bool = True, use_state_novelty: bool = T
     # Default values are taken from stable baselines ppo algorithm
     # This part only covers the stable_baselines hyperparemeters
     configspace_sb_ppo =  ConfigurationSpace({
-        "learning_rate": Float("learning_rate", (1.0e-6, 1.0e-2), default=0.0003, log=True),
         # number of steps to run environment before update
         #"n_steps": Integer("n_steps", (2, 8192), default=2048),
         #"batch_size": Integer("batch_size", (1, 512), default=64),
@@ -17,6 +16,12 @@ def get_ppo_config_space(use_prox_curr: bool = True, use_state_novelty: bool = T
         "max_grad_norm": Float("max_grad_norm", (0.0, 1.0), default=0.5),
         # "use_sde": ..., don't use this for now, have to read paper first. This may be cut due to time constraints
         # There may be more hyperparameters to set, but these are the ones directly specified in stable_baselines3.ppo.PPO
+    })
+    # Learning rate configuration
+    configspace_sb_lr = ConfigurationSpace({
+        "start_lr": Float("start_lr", (1.0e-6, 1.0e-2), default=0.0003, log=True),
+        "end_lr": Float("end_lr", (1.0e-6, 1.0e-2), default=0.0003, log=True),
+        "end_fraction": Float("end_fraction", (0.0, 1.0), default=1.0)
     })
     # Policy configspace
     configspace_sb_policy = ConfigurationSpace({})
@@ -75,6 +80,7 @@ def get_ppo_config_space(use_prox_curr: bool = True, use_state_novelty: bool = T
     # combine everything together
     cs = ConfigurationSpace({})
     cs.add_configuration_space(prefix="sb_ppo", configuration_space=configspace_sb_ppo)
-    cs.add_configuration_space(prefix="approach", configuration_space=configspace_approach)
+    cs.add_configuration_space(prefix="sb_lr", configuration_space=configspace_sb_lr)
     cs.add_configuration_space(prefix="policy", configuration_space=configspace_sb_policy)
+    cs.add_configuration_space(prefix="approach", configuration_space=configspace_approach)
     return cs
