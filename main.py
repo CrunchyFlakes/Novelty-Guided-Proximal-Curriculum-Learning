@@ -27,6 +27,7 @@ logging.root.setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
 
 MAX_TIMESTEPS = 500_000
+MAX_ENV_TIMESTEPS = 1_000
 
 def get_config_for_module(cfg: Configuration, module_name: str) -> dict[str, Any]:
     """
@@ -79,7 +80,7 @@ def train(config: Configuration, env_name: str, env_size: int, seed: int = 0) ->
     config_policy= get_config_for_module(config, "policy")
     config_approach = get_config_for_module(config, "approach")
 
-    env, env_base = make_env(config_approach, env_name, {"size": env_size})
+    env, env_base = make_env(config_approach, env_name, {"size": env_size, "max_steps": MAX_ENV_TIMESTEPS})
     model = PPO("MlpPolicy", env=env, **dict(config_ppo), learning_rate=get_linear_fn(config_ppo_lr["start_lr"], config_ppo_lr["end_lr"], config_ppo_lr["end_fraction"]), policy_kwargs=create_sb_policy_kwargs(config_policy), seed=seed)
 
     # Setup env to use agents value network
