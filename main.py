@@ -158,6 +158,7 @@ if __name__ == "__main__":
 
 
     # Train model with State Novelty
+    logger.info(f"Now training State Novelty Model")
     configspace_nov = get_ppo_config_space(use_prox_curr=False, use_state_novelty=True)
     if not args.skiphpo:
         scenario_nov = Scenario(configspace_nov, **scenario_params)
@@ -174,6 +175,7 @@ if __name__ == "__main__":
 
 
     # Train vanilla model
+    logger.info(f"Now training Vanilla Model")
     configspace_vanilla = get_ppo_config_space(use_prox_curr=False, use_state_novelty=False)
     if not args.skiphpo:
         scenario_vanilla = Scenario(configspace_vanilla, **scenario_params)
@@ -190,6 +192,7 @@ if __name__ == "__main__":
 
 
     # Train Model with Proximal Curriculum and State Novelty
+    logger.info(f"Now training Combined Model")
     configspace_comb = get_ppo_config_space(use_prox_curr=True, use_state_novelty=True)
     if not args.skiphpo:
         scenario_comb = Scenario(configspace_comb, **scenario_params)
@@ -198,7 +201,7 @@ if __name__ == "__main__":
         if incumbent_comb is list:
             incumbent_comb = incumbent_comb[0]
     else:
-        logger.info("Skipping HPO for Vanilla, using default configuration")
+        logger.info("Skipping HPO for Combined Approach, using default configuration")
         incumbent_comb = configspace_comb.get_default_configuration()
     logger.info(f"Gotten Incumbent for Combined Approach: {incumbent_comb}")
     train_result_comb = target_function_multiprocessing(incumbent_comb)
