@@ -39,15 +39,15 @@ def target_function(config: Configuration, seed: int = 0, n_seeds: int = 2) -> t
     seeds = np.random.randint(low=0, high=1000, size=n_seeds)
     results = [train(config, seed=train_seed) for train_seed in seeds]
     result = tuple(np.mean(results, axis=0))
-    logger.info(f"Finished evaluating configuration with {result}")
+    print(f"Finished evaluating configuration with {result}")
     return result
 
 def train(config: Configuration, seed: int = 0) -> tuple[float, float]:
     config_ppo = get_config_for_module(config, "sb_ppo")
     config_approach = get_config_for_module(config, "approach")
 
-    env_base = Monitor(ImgObsWrapper(DoorKeyEnv(size=5)))
-    env = ImgObsWrapper(get_prox_curr_env(DoorKeyEnv, size=5)) if config_approach["use_prox_curr"] == "True" or config_approach["use_state_novelty"] == "True" else ImgObsWrapper(DoorKeyEnv(size=5))
+    env_base = Monitor(ImgObsWrapper(DoorKeyEnv(size=8)))
+    env = ImgObsWrapper(get_prox_curr_env(DoorKeyEnv, size=8)) if config_approach["use_prox_curr"] == "True" or config_approach["use_state_novelty"] == "True" else ImgObsWrapper(DoorKeyEnv(size=8))
     model = PPO("MlpPolicy", env=env, **dict(config_ppo))
     if config_approach["use_prox_curr"] == "True" or config_approach["use_state_novelty"] == "True":
         env.unwrapped.set_agent(model)  # type: ignore
