@@ -8,6 +8,7 @@ from src.hpo import get_ppo_config_space
 from src.util import get_novelty_function
 from minigrid.envs import EmptyEnv
 from minigrid.wrappers import ImgObsWrapper
+import numpy as np
 
 from smac import HyperparameterOptimizationFacade, Scenario
 from ConfigSpace import Configuration, ConfigurationSpace
@@ -31,6 +32,13 @@ def get_config_for_module(cfg: Configuration, module_name: str) -> dict[str, Any
             new_key = key.replace(f"{module_name}:", "")
             cfg_module[new_key] = value
     return cfg_module
+
+def target_function(config: Configuration, seed: int = 0, n_seeds: int = 2) -> tuple[float, float]:
+    np.random.seed(seed)
+    # Generate seeds
+    seeds = np.random.randint(low=0, high=1000, size=n_seeds)
+    results = [train(config, seed=train_seed) for train_seed in seeds]
+    return tuple(np.mean(results, axis=0))
 
 def train(config: Configuration, seed: int = 0) -> tuple[float, float]:
     config_ppo = get_config_for_module(config, "sb_ppo")
@@ -86,12 +94,12 @@ if __name__ == "__main__":
     # Train vanilla model
     configspace_vanilla = get_ppo_config_space(use_prox_curr=False, use_state_novelty=False)
     scenario_vanilla = Scenario(configspace_vanilla, **scenario_params)
-    smac_vanilla = HyperparameterOptimizationFacade(scenario_vanilla, train)
+    smac_vanilla = HyperparameterOptimizationFacade(scenario_vanilla, target_function)
     incumbent_vanilla: Configuration = smac_vanilla.optimize()  # type: ignore  # type fixed in next two lines
     if incumbent_vanilla is list:
         incumbent_vanilla = incumbent_vanilla[0]
     logger.info(f"Gotten Incumbent for Vanilla Approach: {incumbent_vanilla}")
-    train_result_vanilla = train(incumbent_vanilla)
+    train_result_vanilla = target_function(incumbent_vanilla)
     logger.info(f"Score: {train_result_vanilla[0]}, Timesteps left: {train_result_vanilla[1]}")
 
 
@@ -99,34 +107,34 @@ if __name__ == "__main__":
     logger.info(f"Now training Proximal Curriculum Model")
     configspace_prox = get_ppo_config_space(use_prox_curr=True, use_state_novelty=False)
     scenario_prox = Scenario(configspace_prox, **scenario_params)
-    smac_prox = HyperparameterOptimizationFacade(scenario_prox, train)
+    smac_prox = HyperparameterOptimizationFacade(scenario_prox, target_function)
     incumbent_prox: Configuration = smac_prox.optimize()  # type: ignore  # type fixed in next two lines
     if incumbent_prox is list:
         incumbent_prox = incumbent_prox[0]
     logger.info(f"Gotten Incumbent for Proximal Curriculum: {incumbent_prox}")
-    train_result_prox = train(incumbent_prox)
+    train_result_prox = target_function(incumbent_prox)
     logger.info(f"Score: {train_result_prox[0]}, Timesteps left: {train_result_prox[1]}")
 
 
     # Train Model with Proximal Curriculum and State Novelty
     configspace_comb = get_ppo_config_space(use_prox_curr=True, use_state_novelty=True)
     scenario_comb = Scenario(configspace_comb, **scenario_params)
-    smac_comb = HyperparameterOptimizationFacade(scenario_comb, train)
+    smac_comb = HyperparameterOptimizationFacade(scenario_comb, target_function)
     incumbent_comb: Configuration = smac_comb.optimize()  # type: ignore  # type fixed in next two lines
     if incumbent_comb is list:
         incumbent_comb = incumbent_comb[0]
     logger.info(f"Gotten Incumbent for Combined Approach: {incumbent_comb}")
-    train_result_comb = train(incumbent_comb)
+    train_result_comb = target_function(incumbent_comb)
     logger.info(f"Score: {train_result_comb[0]}, Timesteps left: {train_result_comb[1]}")
 
 
     # Train model with State Novelty
     configspace_nov = get_ppo_config_space(use_prox_curr=False, use_state_novelty=True)
     scenario_nov = Scenario(configspace_nov, **scenario_params)
-    smac_nov = HyperparameterOptimizationFacade(scenario_nov, train)
+    smac_nov = HyperparameterOptimizationFacade(scenario_nov, target_function)
     incumbent_nov: Configuration = smac_nov.optimize()  # type: ignore  # type fixed in next two lines
     if incumbent_nov is list:
         incumbent_nov = incumbent_nov[0]
     logger.info(f"Gotten Incumbent for State Novelty Approach: {incumbent_nov}")
-    train_result_nov = train(incumbent_nov)
+    train_result_nov = target_function(incumbent_nov)
     logger.info(f"Score: {train_result_nov[0]}, Timesteps left: {train_result_nov[1]}")
