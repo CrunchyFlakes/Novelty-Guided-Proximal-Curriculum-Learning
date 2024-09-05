@@ -2,6 +2,8 @@ import gymnasium as gym
 import numpy as np
 from minigrid.envs import EmptyEnv
 from minigrid.wrappers import ImgObsWrapper
+from minigrid.core.grid import Grid
+from minigrid.core.world_object import Door
 from stable_baselines3.common.on_policy_algorithm import OnPolicyAlgorithm
 from stable_baselines3.common.utils import obs_as_tensor
 from gymnasium.core import ObsType
@@ -28,15 +30,35 @@ def get_prox_curr_env(env_class, *args, **kwargs):
                 env: The environment which is (ab)used to calculate observation
             """
 
-            def __init__(self, *args, **kwargs):
-                self.env = env_class(*args, **kwargs)
+            def __init__(self, env: "ProxCurrMinigridWrapper"):
+                self.env = env
                 self.wrapped_env = ImgObsWrapper(self.env)
-                self.wrapped_env.reset()
 
-            def __call__(self, state: tuple[tuple[int, int], int]) -> torch.Tensor:
-                self.env.agent_pos = state[0]
-                self.env.agent_dir = state[1]
-                return (
+            def __call__(self, state: tuple[tuple[int, int], int, tuple[int, int] | None, list[tuple[tuple[int, int], tuple[bool, bool]]]]) -> torch.Tensor:
+                agent_pos, agent_dir, pos_item_to_carry, doors_with_states = state
+
+                # save current state
+                original_agent_pos = self.env.agent_pos
+                original_agent_dir = self.env.agent_dir
+                original_doors_with_states = {door: (door.is_open, door.is_locked) for door in [self.env.grid.get(*pos) for pos, _ in doors_with_states]}
+
+                # set agent to new state
+                self.env.agent_pos = agent_pos
+                self.env.agent_dir = agent_dir
+                for door_pos, (door_is_open, door_is_locked) in doors_with_states:
+                    door = self.env.grid.get(*door_pos)
+                    door.is_open = door_is_open
+                    door.is_locked = door_is_locked
+
+                ## env should be freshly reset, nothing should be carried so no backup needed
+                assert self.env.carrying == None
+                ## pick up item if given
+                if pos_item_to_carry:
+                    self.env.carrying = self.env.grid.get(*pos_item_to_carry)
+                    self.env.carrying.cur_pos = np.array([-1, -1])
+                    self.env.grid.set(*pos_item_to_carry, None)
+
+                obs_tensor = (
                     obs_as_tensor(
                         self.wrapped_env.observation(self.env.gen_obs()), device="cpu"
                     )
@@ -44,9 +66,22 @@ def get_prox_curr_env(env_class, *args, **kwargs):
                     .unsqueeze(0)
                 )  # TODO: set device properly
 
+                # We don't need to restore agent_pos and agent_dir, as they will be set always after calls to this
+                ## restore item in env
+                if pos_item_to_carry:
+                    self.env.carrying.cur_pos = np.array(pos_item_to_carry)
+                    self.env.grid.set(*pos_item_to_carry, self.env.carrying)
+                    self.env.carrying = None
+                ## restore doors
+                for door, (door_is_open, door_is_locked) in original_doors_with_states.items():
+                    door.is_open = door_is_open
+                    door.is_locked = door_is_locked
+
+                return obs_tensor
+
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
-            self.state_to_obs = ProxCurrMinigridWrapper.StateToObs(*args, **kwargs)
+            self.state_to_obs = ProxCurrMinigridWrapper.StateToObs(self)
 
         def set_agent(self, agent: OnPolicyAlgorithm) -> None:
             """Set Agent inside of env to be able to pick starting states
@@ -57,17 +92,21 @@ def get_prox_curr_env(env_class, *args, **kwargs):
             self.agent = agent
             return
 
-        def generate_state_candidates(self) -> list[tuple[tuple[int, int], int]]:
+        def generate_state_candidates(self) -> list[tuple[tuple[int, int], int, tuple[int, int] | None, list[tuple[tuple[int, int], tuple[bool, bool]]]]]:
             """Generate all states that the agent could be in in this environment
 
             Returns:
                 list of states
             """
-            positions = product(range(0, self.grid.width), range(0, self.grid.height))
+            positions = list(product(range(0, self.grid.width), range(0, self.grid.height)))
             valid_positions = filter(lambda pos: self.grid.get(*pos) is None, positions)
             directions = range(0, 4)
+            carryable_positions = [pos for pos in positions if self.grid.get(*pos) and self.grid.get(*pos).can_pickup()] + [None]
+            door_positions = [pos for pos in positions if isinstance(self.grid.get(*pos), Door)]
+            door_states: list[tuple[bool, bool]] = [(True, False), (False, False), (False, True)]  # open, closed, locked
+            door_positions_and_states = list(product(door_positions, door_states))
 
-            return list(product(valid_positions, directions))
+            return list(product(valid_positions, directions, carryable_positions, [door_positions_and_states]))
 
         def setup_start_state_picking(self, config: Configuration, novelty_function: Callable[[torch.Tensor], torch.Tensor]):
             self.beta_proximal = config["beta_proximal"]
@@ -102,7 +141,7 @@ def get_prox_curr_env(env_class, *args, **kwargs):
                 raise ValueError("Bound agent does not use ActorCriticPolicy")
 
             # Now set starting state
-            starting_pos, starting_dir = pick_starting_state(
+            starting_pos, starting_dir, pos_item_to_carry, doors_with_states = pick_starting_state(
                 value_function=value_function,
                 novelty_function=self.novelty_function,  # TODO: set this properly
                 state_candidates=self.generate_state_candidates(),
@@ -116,6 +155,18 @@ def get_prox_curr_env(env_class, *args, **kwargs):
             )
             self.agent_pos = starting_pos
             self.agent_dir = starting_dir
+            # env should be freshly reset, nothing should be carried
+            assert self.carrying == None
+            # pick up item if given
+            if pos_item_to_carry:
+                self.carrying = self.grid.get(*pos_item_to_carry)
+                self.carrying.cur_pos = np.array([-1, -1])
+                self.grid.set(*pos_item_to_carry, None)
+            # set doors
+            for door_pos, (door_is_open, door_is_locked) in doors_with_states:
+                door = self.grid.get(*door_pos)
+                door.is_open = door_is_open
+                door.is_locked = door_is_locked
 
             # Return first observation
             obs = super().gen_obs()
