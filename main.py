@@ -3,19 +3,23 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.on_policy_algorithm import OnPolicyAlgorithm
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.monitor import Monitor
+from stable_baselines3.common.vec_env import SubprocVecEnv
 from src.environments import get_prox_curr_env
 from src.hpo import get_ppo_config_space
 from src.util import get_novelty_function
-from minigrid.envs import EmptyEnv, DoorKeyEnv
+from minigrid.envs import EmptyEnv, DoorKeyEnv, UnlockEnv
 from minigrid.wrappers import ImgObsWrapper
 import numpy as np
+from pathlib import PosixPath
 
 from smac import HyperparameterOptimizationFacade, Scenario
 from ConfigSpace import Configuration, ConfigurationSpace
 
-from typing import Callable, Any
+from typing import Callable, Any, Mapping
 import logging
 import multiprocessing
+from functools import partial
+from itertools import product
 
 
 def get_config_for_module(cfg: Configuration, module_name: str) -> dict[str, Any]:
@@ -33,36 +37,58 @@ def get_config_for_module(cfg: Configuration, module_name: str) -> dict[str, Any
             cfg_module[new_key] = value
     return cfg_module
 
-def target_function(config: Configuration, seed: int = 0, n_seeds: int = 2) -> tuple[float, float]:
+def create_sb_policy_kwargs(config: Mapping[str, Any]) -> dict:
+    return {  # TODO: decide if they should get different architectures
+        "net_arch": {
+            "pi": [config[f"policy_layer{i}_size"] for i in range(config["policy_n_layers"])],
+            "vf": [config[f"policy_layer{i}_size"] for i in range(config["policy_n_layers"])],
+        }
+    }
+
+def target_function_configurable(config: Configuration, env_name: str, env_size: int, seed: int = 0, n_seeds: int = 1, n_workers: int = 1) -> tuple[float, float]:  # TODO: change number of seeds to evaluate on
     np.random.seed(seed)
     # Generate seeds
-    seeds = np.random.randint(low=0, high=1000, size=n_seeds)
-    results = [train(config, seed=train_seed) for train_seed in seeds]
+    seeds = list(map(int, np.random.randint(low=0, high=1000, size=n_seeds)))
+    results = [train(config, env_name, env_size, seed=train_seed) for train_seed in seeds]
     result = tuple(np.mean(results, axis=0))
     print(f"Finished evaluating configuration with {result}")
     return result
 
-def train(config: Configuration, seed: int = 0) -> tuple[float, float]:
+def make_env(config_approach: Mapping[str, Any], env_name: str, env_kwargs: dict) -> tuple[gym.Env, gym.Env]:
+    match env_name.lower():
+        case "doorkey":
+            env_class = DoorKeyEnv
+        case "unlock":
+            env_class = UnlockEnv
+            env_kwargs = {}
+        case _:
+            raise NotImplementedError(f"Starting env with name {env_name} is not supported.")
+    env_base = Monitor(ImgObsWrapper(env_class(**env_kwargs)))
+    env = ImgObsWrapper(get_prox_curr_env(env_class, **env_kwargs))
+    return env, env_base
+
+def train(config: Configuration, env_name: str, env_size: int, seed: int = 0) -> tuple[float, float]:
+    logger.info("Training new config")
     config_ppo = get_config_for_module(config, "sb_ppo")
+    config_policy= get_config_for_module(config, "policy")
     config_approach = get_config_for_module(config, "approach")
 
-    env_base = Monitor(ImgObsWrapper(DoorKeyEnv(size=8)))
-    env = ImgObsWrapper(get_prox_curr_env(DoorKeyEnv, size=8)) if config_approach["use_prox_curr"] == "True" or config_approach["use_state_novelty"] == "True" else ImgObsWrapper(DoorKeyEnv(size=8))
-    model = PPO("MlpPolicy", env=env, **dict(config_ppo))
-    if config_approach["use_prox_curr"] == "True" or config_approach["use_state_novelty"] == "True":
-        env.unwrapped.set_agent(model)  # type: ignore
-        # Have to get the novelty function here and not inside "setup_start_state_picking", because it has to see the wrapper
-        novelty_function = get_novelty_function(config_approach, env)
-        env.unwrapped.setup_start_state_picking(config_approach, novelty_function)  # type: ignore
+    env, env_base = make_env(config_approach, env_name, {"size": env_size})
+    model = PPO("MlpPolicy", env=env, **dict(config_ppo), policy_kwargs=create_sb_policy_kwargs(config_policy), seed=seed)
+
+    # Setup env to use agents value network
+    env.unwrapped.set_agent(model)  # type: ignore
+    # Have to get the novelty function here and not inside "setup_start_state_picking", because it has to see the wrapper
+    novelty_function = get_novelty_function(config_approach, env)
+    env.unwrapped.setup_start_state_picking(config_approach, novelty_function)  # type: ignore
     env.reset()  # workaround for minigrid bug
 
-    evaluate = lambda model: evaluate_policy(model, env_base, n_eval_episodes=10)[0]  # [0] -> only return mean score and not variance
-    score, timesteps_left = learn(model, evaluate, timesteps=500_000, eval_every_n_steps=10000, early_terminate=True, early_termination_threshold=0.9)
+    score, timesteps_left = learn(model, timesteps=500_000, eval_env=env_base, eval_every_n_steps=10000, early_terminate=True, early_termination_threshold=0.9)
 
     return -score, -timesteps_left  # prioritize score over timesteps
 
 
-def learn(model: OnPolicyAlgorithm, evaluate: Callable[[OnPolicyAlgorithm], Any], timesteps: int, eval_every_n_steps: int, early_terminate: bool = False, early_termination_threshold: float = 0.0) -> tuple[int, float]:
+def learn(model: OnPolicyAlgorithm, timesteps: int, eval_env: gym.Env, eval_every_n_steps: int, early_terminate: bool = False, early_termination_threshold: float = 0.0) -> tuple[int, float]:
     timesteps_left = timesteps
     score = 0
     while timesteps_left > 0:
@@ -71,10 +97,15 @@ def learn(model: OnPolicyAlgorithm, evaluate: Callable[[OnPolicyAlgorithm], Any]
         model.learn(steps_to_learn)
         timesteps_left -= steps_to_learn
 
-        score = evaluate(model)
+        score = evaluate_policy(model, eval_env,  n_eval_episodes=10)[0]
+        logger.info(f"Model at {timesteps - timesteps_left}/{timesteps} with {score=}")
         if score >= early_termination_threshold and early_terminate:
             break
+    logger.info(f"Model finished with {score=}, {timesteps_left=}")
     return score, timesteps_left
+
+def evaluate_config(config: Configuration, seed: int = 0):
+    pass
 
 
 if __name__ == "__main__":
@@ -85,14 +116,22 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--trials", type=int, required=True)
     parser.add_argument("--workers", type=int, required=True)
+    parser.add_argument("--env_name", type=str, required=True)
+    parser.add_argument("--env_size", type=int, required=True)
     parser.add_argument("--skiphpo", action="store_true")
+    parser.add_argument("--n_seeds_train", type=int, required=True, help="Number of seeds to use during training")
+    parser.add_argument("--n_seeds_eval", type=int, required=True, help="Number of seeds to use during evaluation after HPO")
+    parser.add_argument("--smac_output_dir", type=PosixPath, required=True)
     args = parser.parse_args()
 
     scenario_params = {
         "n_trials": args.trials,
         "n_workers": args.workers,
         "use_default_config": True,
+        "output_directory": args.smac_output_dir,
     }
+    target_function = partial(target_function_configurable, env_name=args.env_name, env_size=args.env_size, n_seeds=args.n_seeds_train, n_workers=1)  # only one worker so it is still pickleable
+    target_function_multiprocessing = partial(target_function_configurable, env_name=args.env_name, env_size=args.env_size, n_seeds=args.n_seeds_eval, n_workers=args.workers)
 
 
     # Train Model with Proximal Curriculum
@@ -108,7 +147,7 @@ if __name__ == "__main__":
         logger.info("Skipping HPO for Proximal Curriculum, using default configuration")
         incumbent_prox = configspace_prox.get_default_configuration()
     logger.info(f"Gotten Incumbent for Proximal Curriculum: {incumbent_prox}")
-    train_result_prox = target_function(incumbent_prox)
+    train_result_prox = target_function_multiprocessing(incumbent_prox)
     logger.info(f"Score: {train_result_prox[0]}, Timesteps left: {train_result_prox[1]}")
 
 
@@ -124,7 +163,7 @@ if __name__ == "__main__":
         logger.info("Skipping HPO for State Novelty, using default configuration")
         incumbent_nov = configspace_nov.get_default_configuration()
     logger.info(f"Gotten Incumbent for State Novelty Approach: {incumbent_nov}")
-    train_result_nov = target_function(incumbent_nov)
+    train_result_nov = target_function_multiprocessing(incumbent_nov)
     logger.info(f"Score: {train_result_nov[0]}, Timesteps left: {train_result_nov[1]}")
 
 
@@ -140,7 +179,7 @@ if __name__ == "__main__":
         logger.info("Skipping HPO for Vanilla, using default configuration")
         incumbent_vanilla = configspace_vanilla.get_default_configuration()
     logger.info(f"Gotten Incumbent for Vanilla Approach: {incumbent_vanilla}")
-    train_result_vanilla = target_function(incumbent_vanilla)
+    train_result_vanilla = target_function_multiprocessing(incumbent_vanilla)
     logger.info(f"Score: {train_result_vanilla[0]}, Timesteps left: {train_result_vanilla[1]}")
 
 
@@ -156,5 +195,5 @@ if __name__ == "__main__":
         logger.info("Skipping HPO for Vanilla, using default configuration")
         incumbent_comb = configspace_comb.get_default_configuration()
     logger.info(f"Gotten Incumbent for Combined Approach: {incumbent_comb}")
-    train_result_comb = target_function(incumbent_comb)
+    train_result_comb = target_function_multiprocessing(incumbent_comb)
     logger.info(f"Score: {train_result_comb[0]}, Timesteps left: {train_result_comb[1]}")

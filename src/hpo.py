@@ -18,6 +18,16 @@ def get_ppo_config_space(use_prox_curr: bool = True, use_state_novelty: bool = T
         # "use_sde": ..., don't use this for now, have to read paper first. This may be cut due to time constraints
         # There may be more hyperparameters to set, but these are the ones directly specified in stable_baselines3.ppo.PPO
     })
+    # Policy configspace
+    configspace_sb_policy = ConfigurationSpace({})
+    ### layer sizes
+    max_layers = 5
+    policy_n_layers = Integer("policy_n_layers", (1, max_layers), default=2)
+    policy_layersizes = [Integer(f"policy_layer{i}_size", (1, 128), default=32) for i in range(max_layers)]
+    policy_layersize_conds = [GreaterThanCondition(policy_layersizes[i], policy_n_layers, i) for i in range(1, max_layers)]
+    configspace_sb_policy.add((policy_n_layers, *policy_layersizes, *policy_layersize_conds))
+ 
+
 
     # Hyperparameters needed for proximal curriculum learning with state novelty
     configspace_approach = ConfigurationSpace({
@@ -27,7 +37,7 @@ def get_ppo_config_space(use_prox_curr: bool = True, use_state_novelty: bool = T
     if use_prox_curr:
         beta_proximal = Float("beta_proximal", (0.0, 1.0), default=0.5)  # this default is guessed
     else:
-        beta_proximal = Constant("beta_proximal", 1.0)
+        beta_proximal = Constant("beta_proximal", 0.0)
     configspace_approach.add(beta_proximal)
     if use_prox_curr and use_state_novelty:
         configspace_approach.add(Float("gamma_tradeoff", (0.0, 1.0), default=0.5))
@@ -35,6 +45,9 @@ def get_ppo_config_space(use_prox_curr: bool = True, use_state_novelty: bool = T
         configspace_approach.add(Constant("gamma_tradeoff", 1.0))
     elif use_state_novelty:
         configspace_approach.add(Constant("gamma_tradeoff", 0.0))
+    else:
+        # Prox curr is disabled due to beta_proximal being 0, so this samples starting states uniformly
+        configspace_approach.add(Constant("gamma_tradeoff", 1.0))
 
 
     novelty_approach = Categorical("novelty_approach", ("rnd",) if use_state_novelty else ("none",))
@@ -63,4 +76,5 @@ def get_ppo_config_space(use_prox_curr: bool = True, use_state_novelty: bool = T
     cs = ConfigurationSpace({})
     cs.add_configuration_space(prefix="sb_ppo", configuration_space=configspace_sb_ppo)
     cs.add_configuration_space(prefix="approach", configuration_space=configspace_approach)
+    cs.add_configuration_space(prefix="policy", configuration_space=configspace_sb_policy)
     return cs

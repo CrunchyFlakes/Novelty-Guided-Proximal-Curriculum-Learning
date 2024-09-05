@@ -4,3 +4,5 @@ minigrid
 numpy
 SMAC
 swig
+tqdm
+rich
