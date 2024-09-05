@@ -51,14 +51,13 @@ def create_sb_policy_kwargs(config: Mapping[str, Any]) -> dict:
         }
     }
 
-def target_function_configurable(config: Configuration, env_name: str, env_size: int, seed: int = 0, n_seeds: int = 1, n_workers: int = 1) -> tuple[float, float]:  # TODO: change number of seeds to evaluate on
+def target_function_configurable(config: Configuration, env_name: str, env_size: int, seed: int = 0, n_seeds: int = 1, n_workers: int = 1) -> tuple[float, dict]:  # TODO: change number of seeds to evaluate on
     np.random.seed(seed)
     # Generate seeds
     seeds = list(map(int, np.random.randint(low=0, high=1000, size=n_seeds)))
     results = [train(config, env_name, env_size, seed=train_seed) for train_seed in seeds]
-    result = tuple(np.mean(results, axis=0))
-    print(f"Finished evaluating configuration with {result}")
-    return result
+    scores, infos = zip(*results)
+    return float(np.mean(scores)), infos
 
 def make_env(config_approach: Mapping[str, Any], env_name: str, env_kwargs: dict) -> tuple[gym.Env, gym.Env]:
     match env_name.lower():
@@ -73,8 +72,8 @@ def make_env(config_approach: Mapping[str, Any], env_name: str, env_kwargs: dict
     env = ImgObsWrapper(get_prox_curr_env(env_class, **env_kwargs))
     return env, env_base
 
-def train(config: Configuration, env_name: str, env_size: int, seed: int = 0) -> float:
-    logger.info("Training new config")
+def train(config: Configuration, env_name: str, env_size: int, seed: int = 0) -> tuple[float, dict]:
+    logger.debug("Training new config")
     config_ppo = get_config_for_module(config, "sb_ppo")
     config_ppo_lr = get_config_for_module(config, "sb_lr")
     config_policy= get_config_for_module(config, "policy")
@@ -96,7 +95,7 @@ def train(config: Configuration, env_name: str, env_size: int, seed: int = 0) ->
     # mean_train_eval_score is to get a better signal
     # timesteps_left / MAX_TIMESTEPS is meant as a tie-breaker
     combined_score = (-1) * (10*score + mean_train_eval_score + timesteps_left / MAX_TIMESTEPS)
-    return combined_score
+    return combined_score, {"reward": score, "mean_train_eval_score": mean_train_eval_score, "time_left_ratio": timesteps_left / MAX_TIMESTEPS}
 
 
 def learn(model: OnPolicyAlgorithm, timesteps: int, eval_env: gym.Env, eval_every_n_steps: int, early_terminate: bool = False, early_termination_threshold: float = 0.0) -> tuple[float, int, float]:
@@ -111,7 +110,7 @@ def learn(model: OnPolicyAlgorithm, timesteps: int, eval_env: gym.Env, eval_ever
 
         score = evaluate_policy(model, eval_env,  n_eval_episodes=10)[0]
         score_history.append(score)
-        logger.info(f"Model at {timesteps - timesteps_left}/{timesteps} with {score=}")
+        logger.debug(f"Model at {timesteps - timesteps_left}/{timesteps} with {score=}")
         if score >= early_termination_threshold and early_terminate:
             break
     mean_score_history = float(np.mean(score_history))
@@ -161,8 +160,9 @@ if __name__ == "__main__":
         logger.info("Skipping HPO for Proximal Curriculum, using default configuration")
         incumbent_prox = configspace_prox.get_default_configuration()
     logger.info(f"Gotten Incumbent for Proximal Curriculum: {incumbent_prox}")
-    train_result_prox = target_function_multiprocessing(incumbent_prox)
-    logger.info(f"Score: {train_result_prox[0]}, Timesteps left: {train_result_prox[1]}")
+    train_result_prox_score, train_result_prox_info = target_function_multiprocessing(incumbent_prox)
+    logger.info(f"Proximal Curriculum Approach Results: score={train_result_prox_score}, {train_result_prox_info}")
+
 
 
     # Train model with State Novelty
@@ -178,8 +178,8 @@ if __name__ == "__main__":
         logger.info("Skipping HPO for State Novelty, using default configuration")
         incumbent_nov = configspace_nov.get_default_configuration()
     logger.info(f"Gotten Incumbent for State Novelty Approach: {incumbent_nov}")
-    train_result_nov = target_function_multiprocessing(incumbent_nov)
-    logger.info(f"Score: {train_result_nov[0]}, Timesteps left: {train_result_nov[1]}")
+    train_result_nov_score, train_result_nov_info = target_function_multiprocessing(incumbent_nov)
+    logger.info(f"State Novelty Approach Results: score={train_result_nov_score}, {train_result_nov_info}")
 
 
     # Train vanilla model
@@ -195,8 +195,8 @@ if __name__ == "__main__":
         logger.info("Skipping HPO for Vanilla, using default configuration")
         incumbent_vanilla = configspace_vanilla.get_default_configuration()
     logger.info(f"Gotten Incumbent for Vanilla Approach: {incumbent_vanilla}")
-    train_result_vanilla = target_function_multiprocessing(incumbent_vanilla)
-    logger.info(f"Score: {train_result_vanilla[0]}, Timesteps left: {train_result_vanilla[1]}")
+    train_result_vanilla_score, train_result_vanilla_info = target_function_multiprocessing(incumbent_vanilla)
+    logger.info(f"Vanilla Approach Results: score={train_result_vanilla_score}, {train_result_vanilla_info}")
 
 
     # Train Model with Proximal Curriculum and State Novelty
@@ -212,5 +212,5 @@ if __name__ == "__main__":
         logger.info("Skipping HPO for Combined Approach, using default configuration")
         incumbent_comb = configspace_comb.get_default_configuration()
     logger.info(f"Gotten Incumbent for Combined Approach: {incumbent_comb}")
-    train_result_comb = target_function_multiprocessing(incumbent_comb)
-    logger.info(f"Score: {train_result_comb[0]}, Timesteps left: {train_result_comb[1]}")
+    train_result_comb_score, train_result_comb_info = target_function_multiprocessing(incumbent_comb)
+    logger.info(f"Combined Approach Results: score={train_result_comb_score}, {train_result_comb_info}")
