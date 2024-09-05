@@ -26,6 +26,8 @@ logging.basicConfig()
 logging.root.setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
 
+MAX_TIMESTEPS = 500_000
+
 def get_config_for_module(cfg: Configuration, module_name: str) -> dict[str, Any]:
     """
     This function is used to extract a sub configuration that belongs to a certain module
@@ -71,7 +73,7 @@ def make_env(config_approach: Mapping[str, Any], env_name: str, env_kwargs: dict
     env = ImgObsWrapper(get_prox_curr_env(env_class, **env_kwargs))
     return env, env_base
 
-def train(config: Configuration, env_name: str, env_size: int, seed: int = 0) -> tuple[float, int, float]:
+def train(config: Configuration, env_name: str, env_size: int, seed: int = 0) -> float:
     logger.info("Training new config")
     config_ppo = get_config_for_module(config, "sb_ppo")
     config_ppo_lr = get_config_for_module(config, "sb_lr")
@@ -88,9 +90,13 @@ def train(config: Configuration, env_name: str, env_size: int, seed: int = 0) ->
     env.unwrapped.setup_start_state_picking(config_approach, novelty_function)  # type: ignore
     env.reset()  # workaround for minigrid bug
 
-    score, timesteps_left, mean_train_eval_score = learn(model, timesteps=500_000, eval_env=env_base, eval_every_n_steps=10000, early_terminate=True, early_termination_threshold=0.9)
+    score, timesteps_left, mean_train_eval_score = learn(model, timesteps=MAX_TIMESTEPS, eval_env=env_base, eval_every_n_steps=10000, early_terminate=True, early_termination_threshold=0.9)
 
-    return -score, -timesteps_left, -mean_train_eval_score  # prioritize score over timesteps
+    # real multiobjective is not that useful here, because the end score is what really counts
+    # mean_train_eval_score is to get a better signal
+    # timesteps_left / MAX_TIMESTEPS is meant as a tie-breaker
+    combined_score = (-1) * (10*score + mean_train_eval_score + timesteps_left / MAX_TIMESTEPS)
+    return combined_score
 
 
 def learn(model: OnPolicyAlgorithm, timesteps: int, eval_env: gym.Env, eval_every_n_steps: int, early_terminate: bool = False, early_termination_threshold: float = 0.0) -> tuple[float, int, float]:
