@@ -71,10 +71,15 @@ if __name__ == "__main__":
     logging.basicConfig()
     logging.root.setLevel(logging.INFO)
     logger = logging.getLogger(__name__)
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--trials", type=int, required=True)
+    parser.add_argument("--workers", type=int, required=True)
+    args = parser.parse_args()
 
     scenario_params = {
-        "n_trials": 20,
-        "n_workers": multiprocessing.cpu_count() - 1,  # -1 to have resources for other stuff
+        "n_trials": args.n_trials,
+        "n_workers": args.n_workers,
         "use_default_config": True,
     }
 
