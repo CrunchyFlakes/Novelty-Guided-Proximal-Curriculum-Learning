@@ -9,7 +9,7 @@ from src.environments import get_prox_curr_env
 from src.hpo import get_ppo_config_space
 from src.util import get_novelty_function
 from minigrid.envs import EmptyEnv, DoorKeyEnv, UnlockEnv
-from minigrid.wrappers import ImgObsWrapper
+from minigrid.wrappers import FullyObsWrapper
 import numpy as np
 from pathlib import PosixPath
 
@@ -68,8 +68,8 @@ def make_env(config_approach: Mapping[str, Any], env_name: str, env_kwargs: dict
             env_kwargs = {}
         case _:
             raise NotImplementedError(f"Starting env with name {env_name} is not supported.")
-    env_base = Monitor(ImgObsWrapper(env_class(**env_kwargs)))
-    env = ImgObsWrapper(get_prox_curr_env(env_class, **env_kwargs))
+    env_base = Monitor(FullyObsWrapper(env_class(**env_kwargs)))
+    env = FullyObsWrapper(get_prox_curr_env(env_class, **env_kwargs))
     return env, env_base
 
 def train(config: Configuration, env_name: str, env_size: int, seed: int = 0) -> tuple[float, dict]:
