@@ -1,7 +1,8 @@
 import gymnasium as gym
 import numpy as np
 from minigrid.envs import EmptyEnv
-from minigrid.wrappers import ImgObsWrapper
+from gymnasium import spaces
+from minigrid.wrappers import FullyObsWrapper, ImgObsWrapper
 from minigrid.core.grid import Grid
 from minigrid.core.world_object import Door
 from stable_baselines3.common.on_policy_algorithm import OnPolicyAlgorithm
@@ -19,6 +20,19 @@ from typing import Any, Callable
 # | All classes here act as a wrapper to allow for curriculum learning based on starting state |
 # +--------------------------------------------------------------------------------------------+
 
+class FullImgObsWrapper(FullyObsWrapper):
+    def __init__(self, env):
+        """A wrapper that makes image the only observation.
+
+        Args:
+            env: The environment to apply the wrapper
+        """
+        super().__init__(env)
+        self.observation_space = self.observation_space["image"]
+
+    def observation(self, obs):
+        return super().observation(obs)["image"]
+
 def get_prox_curr_env(env_class, *args, **kwargs):
     class ProxCurrMinigridWrapper(env_class):
         class StateToObs:
@@ -32,7 +46,7 @@ def get_prox_curr_env(env_class, *args, **kwargs):
 
             def __init__(self, env: "ProxCurrMinigridWrapper"):
                 self.env = env
-                self.wrapped_env = ImgObsWrapper(self.env)
+                self.wrapped_env = FullImgObsWrapper(self.env)
 
             def __call__(self, state: tuple[tuple[int, int], int, tuple[int, int] | None, list[tuple[tuple[int, int], tuple[bool, bool]]]]) -> torch.Tensor:
                 agent_pos, agent_dir, pos_item_to_carry, doors_with_states = state
