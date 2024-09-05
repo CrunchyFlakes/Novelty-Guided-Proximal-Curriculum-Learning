@@ -21,6 +21,9 @@ import multiprocessing
 from functools import partial
 from itertools import product
 
+logging.basicConfig()
+logging.root.setLevel(logging.INFO)
+logger = logging.getLogger(__name__)
 
 def get_config_for_module(cfg: Configuration, module_name: str) -> dict[str, Any]:
     """
@@ -109,9 +112,6 @@ def evaluate_config(config: Configuration, seed: int = 0):
 
 
 if __name__ == "__main__":
-    logging.basicConfig()
-    logging.root.setLevel(logging.INFO)
-    logger = logging.getLogger(__name__)
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--trials", type=int, required=True)
@@ -124,6 +124,9 @@ if __name__ == "__main__":
     parser.add_argument("--smac_output_dir", type=PosixPath, required=True)
     args = parser.parse_args()
 
+    facade_params = {
+        "logging_level": logging.INFO,
+    }
     scenario_params = {
         "n_trials": args.trials,
         "n_workers": args.workers,
@@ -139,7 +142,7 @@ if __name__ == "__main__":
     configspace_prox = get_ppo_config_space(use_prox_curr=True, use_state_novelty=False)
     if not args.skiphpo:
         scenario_prox = Scenario(configspace_prox, **scenario_params)
-        smac_prox = HyperparameterOptimizationFacade(scenario_prox, target_function)
+        smac_prox = HyperparameterOptimizationFacade(scenario_prox, target_function, **facade_params)
         incumbent_prox: Configuration = smac_prox.optimize()  # type: ignore  # type fixed in next two lines
         if incumbent_prox is list:
             incumbent_prox = incumbent_prox[0]
@@ -155,7 +158,7 @@ if __name__ == "__main__":
     configspace_nov = get_ppo_config_space(use_prox_curr=False, use_state_novelty=True)
     if not args.skiphpo:
         scenario_nov = Scenario(configspace_nov, **scenario_params)
-        smac_nov = HyperparameterOptimizationFacade(scenario_nov, target_function)
+        smac_nov = HyperparameterOptimizationFacade(scenario_nov, target_function, **facade_params)
         incumbent_nov: Configuration = smac_nov.optimize()  # type: ignore  # type fixed in next two lines
         if incumbent_nov is list:
             incumbent_nov = incumbent_nov[0]
@@ -171,7 +174,7 @@ if __name__ == "__main__":
     configspace_vanilla = get_ppo_config_space(use_prox_curr=False, use_state_novelty=False)
     if not args.skiphpo:
         scenario_vanilla = Scenario(configspace_vanilla, **scenario_params)
-        smac_vanilla = HyperparameterOptimizationFacade(scenario_vanilla, target_function)
+        smac_vanilla = HyperparameterOptimizationFacade(scenario_vanilla, target_function, **facade_params)
         incumbent_vanilla: Configuration = smac_vanilla.optimize()  # type: ignore  # type fixed in next two lines
         if incumbent_vanilla is list:
             incumbent_vanilla = incumbent_vanilla[0]
@@ -187,7 +190,7 @@ if __name__ == "__main__":
     configspace_comb = get_ppo_config_space(use_prox_curr=True, use_state_novelty=True)
     if not args.skiphpo:
         scenario_comb = Scenario(configspace_comb, **scenario_params)
-        smac_comb = HyperparameterOptimizationFacade(scenario_comb, target_function)
+        smac_comb = HyperparameterOptimizationFacade(scenario_comb, target_function, **facade_params)
         incumbent_comb: Configuration = smac_comb.optimize()  # type: ignore  # type fixed in next two lines
         if incumbent_comb is list:
             incumbent_comb = incumbent_comb[0]
