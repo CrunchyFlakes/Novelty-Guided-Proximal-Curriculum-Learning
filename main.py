@@ -70,7 +70,7 @@ def make_env(config_approach: Mapping[str, Any], env_name: str, env_kwargs: dict
     env = ImgObsWrapper(get_prox_curr_env(env_class, **env_kwargs))
     return env, env_base
 
-def train(config: Configuration, env_name: str, env_size: int, seed: int = 0) -> tuple[float, float]:
+def train(config: Configuration, env_name: str, env_size: int, seed: int = 0) -> tuple[float, int, float]:
     logger.info("Training new config")
     config_ppo = get_config_for_module(config, "sb_ppo")
     config_policy= get_config_for_module(config, "policy")
@@ -86,14 +86,15 @@ def train(config: Configuration, env_name: str, env_size: int, seed: int = 0) ->
     env.unwrapped.setup_start_state_picking(config_approach, novelty_function)  # type: ignore
     env.reset()  # workaround for minigrid bug
 
-    score, timesteps_left = learn(model, timesteps=500_000, eval_env=env_base, eval_every_n_steps=10000, early_terminate=True, early_termination_threshold=0.9)
+    score, timesteps_left, mean_train_eval_score = learn(model, timesteps=500_000, eval_env=env_base, eval_every_n_steps=10000, early_terminate=True, early_termination_threshold=0.9)
 
-    return -score, -timesteps_left  # prioritize score over timesteps
+    return -score, -timesteps_left, -mean_train_eval_score  # prioritize score over timesteps
 
 
-def learn(model: OnPolicyAlgorithm, timesteps: int, eval_env: gym.Env, eval_every_n_steps: int, early_terminate: bool = False, early_termination_threshold: float = 0.0) -> tuple[int, float]:
+def learn(model: OnPolicyAlgorithm, timesteps: int, eval_env: gym.Env, eval_every_n_steps: int, early_terminate: bool = False, early_termination_threshold: float = 0.0) -> tuple[float, int, float]:
     timesteps_left = timesteps
     score = 0
+    score_history = []
     while timesteps_left > 0:
         # Learn
         steps_to_learn = min(timesteps_left, eval_every_n_steps)
@@ -101,11 +102,12 @@ def learn(model: OnPolicyAlgorithm, timesteps: int, eval_env: gym.Env, eval_ever
         timesteps_left -= steps_to_learn
 
         score = evaluate_policy(model, eval_env,  n_eval_episodes=10)[0]
+        score_history.append(score)
         logger.info(f"Model at {timesteps - timesteps_left}/{timesteps} with {score=}")
         if score >= early_termination_threshold and early_terminate:
             break
     logger.info(f"Model finished with {score=}, {timesteps_left=}")
-    return score, timesteps_left
+    return float(score), timesteps_left, float(np.mean(score_history))
 
 def evaluate_config(config: Configuration, seed: int = 0):
     pass
