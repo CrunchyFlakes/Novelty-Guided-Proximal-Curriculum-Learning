@@ -2,7 +2,13 @@ from ConfigSpace import ConfigurationSpace, Float, Integer, Constant, EqualsCond
 
 
 def get_ppo_config_space(use_prox_curr: bool = True, use_state_novelty: bool = True) -> ConfigurationSpace:
-    # Default values are mostly taken from stable baselines ppo algorithm
+    # Default values are composed of stable baselines defaults and
+    # an aggregation of previously found configurations by SMAC for the different approaches.
+    # This may result in SMAC not finding a new better configuration.
+    # Although that undermines the reproducibility of the hyperparemeter optimization, the
+    # configuration is just a tool to test the actual approach and is therefore not relevant for the actual evaluation.
+    # To see the configuration changes look at commit "875d1d593a272401adc96576e76217690222612f".
+
     # This part only covers the stable_baselines hyperparemeters
     configspace_sb_ppo =  ConfigurationSpace({
         # number of steps to run environment before update
