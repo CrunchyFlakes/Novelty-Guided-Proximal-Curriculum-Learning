@@ -54,7 +54,8 @@ def target_function_configurable(config: Configuration, env_name: str, env_size:
     np.random.seed(seed)
     torch.manual_seed(seed)
     # Generate seeds
-    seeds = [10 * seed + subseed for subseed in range(n_seeds)]
+    seeds = [1000 * seed + subseed for subseed in range(n_seeds)]
+    print(seeds)
     results = [train(*initialize_model_and_env(config, env_name, env_size, seed=train_seed)) for train_seed in seeds]
     scores, infos = zip(*results)
     return float(np.mean(scores)), infos
