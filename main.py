@@ -22,6 +22,8 @@ import logging
 import multiprocessing
 from functools import partial
 from itertools import product
+import os
+import json
 
 logging.basicConfig()
 logging.root.setLevel(logging.INFO)
@@ -106,13 +108,13 @@ def train(config: Configuration, env_name: str, env_size: int, seed: int = 0) ->
     env.unwrapped.setup_start_state_picking(config_approach, novelty_function)  # type: ignore
     env.reset()  # workaround for minigrid bug
 
-    score, timesteps_left, score_history = learn(model, timesteps=MAX_TIMESTEPS, eval_env=env_base, eval_every_n_steps=10000, early_terminate=True, early_termination_threshold=0.9)
+    score, timesteps_left, score_history = learn(model, timesteps=MAX_TIMESTEPS, eval_env=env_base, eval_every_n_steps=10000, early_terminate=True, early_termination_threshold=0.95)
 
     # real multiobjective is not that useful here, because the end score is what really counts
-    # mean_train_eval_score is to get a better signal
-    # timesteps_left / MAX_TIMESTEPS is meant as a tie-breaker
+    # mean_train_eval_score is to get a better signal when there is no reward at the end, but the agent found something during evaluation runs while training
+    # timesteps_left / MAX_TIMESTEPS is meant as a tie-breaker, but has to be able to compensate for terminating earlier -> multiply
     mean_train_eval_score = float(np.mean(list(score_history.values())))
-    combined_score = (-1) * (10*score + mean_train_eval_score + timesteps_left / MAX_TIMESTEPS)
+    combined_score = (-1) * (10*score + mean_train_eval_score + 5 * (timesteps_left / MAX_TIMESTEPS))
     return combined_score, {"reward": score, "mean_train_eval_score": mean_train_eval_score, "time_left_ratio": timesteps_left / MAX_TIMESTEPS, "score_history": score_history}
 
 
@@ -133,9 +135,18 @@ def learn(model: OnPolicyAlgorithm, timesteps: int, eval_env: gym.Env, eval_ever
             break
     mean_score_history = float(np.mean(list(score_history.values())))
     logger.info(f"Model finished with {score=}, {timesteps_left=}, {mean_score_history=}")
-def evaluate_config(config: Configuration, seed: int = 0):
-    pass
+    return float(score), timesteps_left, score_history
 
+def run_hpo(name: str, configspace: ConfigurationSpace, scenario_params: dict, facade_params: dict, target_function_smac: Callable) -> Configuration:
+    logger.info(f"Now training {name} Model")
+    scenario = Scenario(configspace, **scenario_params)
+    smac = HyperparameterOptimizationFacade(scenario, target_function_smac, **facade_params)
+    incumbent: Configuration = smac.optimize()  # type: ignore  # type fixed in next two lines
+    if incumbent is list:
+        incumbent = incumbent[0]
+    logger.info(f"Skipping HPO for {name} Approach, using default configuration")
+    incumbent = configspace.get_default_configuration()
+    return incumbent
 
 if __name__ == "__main__":
     import argparse
@@ -144,88 +155,62 @@ if __name__ == "__main__":
     parser.add_argument("--workers", type=int, required=True)
     parser.add_argument("--env_name", type=str, required=True)
     parser.add_argument("--env_size", type=int, required=True)
-    parser.add_argument("--skiphpo", action="store_true")
-    parser.add_argument("--n_seeds_train", type=int, required=True, help="Number of seeds to use during training")
+    parser.add_argument("--mode", choices=["hpo", "load"], required=True)
+    parser.add_argument("--n_seeds_hpo", type=int, required=True, help="Number of seeds to use during HPO of a single model to get a more stable result. Not really needed, because SMAC actually evaluates configs multiple times if they are promising.")
     parser.add_argument("--n_seeds_eval", type=int, required=True, help="Number of seeds to use during evaluation after HPO")
-    parser.add_argument("--smac_output_dir", type=PosixPath, required=True)
+    parser.add_argument("--result_dir", type=PosixPath, required=True)
+    parser.add_argument("--approach_to_check", choices=["comb", "prox", "novel", "vanilla"], required=True)
     args = parser.parse_args()
 
-    facade_params = {
-        "logging_level": logging.INFO,
-    }
-    scenario_params = {
-        "n_trials": args.trials,
-        "n_workers": args.workers,
-        "use_default_config": True,
-        "output_directory": args.smac_output_dir,
-    }
-    target_function = partial(target_function_configurable, env_name=args.env_name, env_size=args.env_size, n_seeds=args.n_seeds_train)  # only one worker, otherwise SMAC can't use multiple workers
-    target_function_eval = partial(target_function_multiprocessing, env_name=args.env_name, env_size=args.env_size, n_seeds=args.n_seeds_eval)
 
+    target_function_single = partial(target_function_configurable, env_name=args.env_name, env_size=args.env_size, n_seeds=args.n_seeds_hpo)  # only one worker, otherwise SMAC can't use multiple workers
+    target_function_multi = partial(target_function_multiprocessing, env_name=args.env_name, env_size=args.env_size, n_seeds=args.n_seeds_eval)
+    result_dir = args.result_dir / args.approach_to_check
 
-    # Train Model with Proximal Curriculum and State Novelty
-    logger.info(f"Now training Combined Model")
-    configspace_comb = get_ppo_config_space(use_prox_curr=True, use_state_novelty=True)
-    if not args.skiphpo:
-        scenario_comb = Scenario(configspace_comb, **scenario_params)
-        smac_comb = HyperparameterOptimizationFacade(scenario_comb, target_function, **facade_params)
-        incumbent_comb: Configuration = smac_comb.optimize()  # type: ignore  # type fixed in next two lines
-        if incumbent_comb is list:
-            incumbent_comb = incumbent_comb[0]
-    else:
-        logger.info("Skipping HPO for Combined Approach, using default configuration")
-        incumbent_comb = configspace_comb.get_default_configuration()
-    logger.info(f"Gotten Incumbent for Combined Approach: {incumbent_comb}")
-    train_result_comb_score, train_result_comb_info = target_function_eval(incumbent_comb)
-    logger.info(f"Combined Approach Results: score={train_result_comb_score}")
+    match args.mode:
+        case "hpo":  # We will have to create the result dir
+            os.makedirs(result_dir, exist_ok=False)
 
+            match args.approach_to_check:
+                case "comb":
+                    configspace = get_ppo_config_space(use_prox_curr=True, use_state_novelty=True)
+                case "prox":
+                    configspace = get_ppo_config_space(use_prox_curr=True, use_state_novelty=False)
+                case "novel":
+                    configspace = get_ppo_config_space(use_prox_curr=False, use_state_novelty=True)
+                case "vanilla":
+                    configspace = get_ppo_config_space(use_prox_curr=False, use_state_novelty=False)
+                case _:
+                    raise NotImplementedError(f"Approach {args.approach_to_check} not implemented.")
 
-    # Train Model with Proximal Curriculum
-    logger.info(f"Now training Proximal Curriculum Model")
-    configspace_prox = get_ppo_config_space(use_prox_curr=True, use_state_novelty=False)
-    if not args.skiphpo:
-        scenario_prox = Scenario(configspace_prox, **scenario_params)
-        smac_prox = HyperparameterOptimizationFacade(scenario_prox, target_function, **facade_params)
-        incumbent_prox: Configuration = smac_prox.optimize()  # type: ignore  # type fixed in next two lines
-        if incumbent_prox is list:
-            incumbent_prox = incumbent_prox[0]
-    else:
-        logger.info("Skipping HPO for Proximal Curriculum, using default configuration")
-        incumbent_prox = configspace_prox.get_default_configuration()
-    logger.info(f"Gotten Incumbent for Proximal Curriculum: {incumbent_prox}")
-    train_result_prox_score, train_result_prox_info = target_function_eval(incumbent_prox)
-    logger.info(f"Proximal Curriculum Approach Results: score={train_result_prox_score}")
+            facade_params = {
+                "logging_level": logging.INFO,
+            }
+            scenario_params = {
+                "n_trials": args.trials,
+                "n_workers": args.workers,
+                "use_default_config": True,
+                "output_directory": args.smac_output_dir,
+            }
+            incumbent = run_hpo(name=args.approach_to_check, configspace=configspace, scenario_params=scenario_params, facade_params=facade_params, target_function_smac=target_function_single)
 
+            # Save configuration
+            configspace.to_json(result_dir / "configspace.json")
+            with open(result_dir / "config.json", "w") as config_file:
+                json.dump(dict(incumbent), config_file)
 
-    # Train model with State Novelty
-    logger.info(f"Now training State Novelty Model")
-    configspace_nov = get_ppo_config_space(use_prox_curr=False, use_state_novelty=True)
-    if not args.skiphpo:
-        scenario_nov = Scenario(configspace_nov, **scenario_params)
-        smac_nov = HyperparameterOptimizationFacade(scenario_nov, target_function, **facade_params)
-        incumbent_nov: Configuration = smac_nov.optimize()  # type: ignore  # type fixed in next two lines
-        if incumbent_nov is list:
-            incumbent_nov = incumbent_nov[0]
-    else:
-        logger.info("Skipping HPO for State Novelty, using default configuration")
-        incumbent_nov = configspace_nov.get_default_configuration()
-    logger.info(f"Gotten Incumbent for State Novelty Approach: {incumbent_nov}")
-    train_result_nov_score, train_result_nov_info = target_function_eval(incumbent_nov)
-    logger.info(f"State Novelty Approach Results: score={train_result_nov_score}")
+        case "load":  # There already has to be a result dir (the given one). We will only evaluate it
+            configspace = ConfigurationSpace.from_json(result_dir / "configspace.json")
+            with open(result_dir / "config.json", "r") as config_file:
+                incumbent = Configuration(configuration_space=configspace, values=json.load(config_file))
 
+        case _:
+            raise NotImplementedError(f"mode {args.mode} not implemented.")
 
-    # Train vanilla model
-    logger.info(f"Now training Vanilla Model")
-    configspace_vanilla = get_ppo_config_space(use_prox_curr=False, use_state_novelty=False)
-    if not args.skiphpo:
-        scenario_vanilla = Scenario(configspace_vanilla, **scenario_params)
-        smac_vanilla = HyperparameterOptimizationFacade(scenario_vanilla, target_function, **facade_params)
-        incumbent_vanilla: Configuration = smac_vanilla.optimize()  # type: ignore  # type fixed in next two lines
-        if incumbent_vanilla is list:
-            incumbent_vanilla = incumbent_vanilla[0]
-    else:
-        logger.info("Skipping HPO for Vanilla, using default configuration")
-        incumbent_vanilla = configspace_vanilla.get_default_configuration()
-    logger.info(f"Gotten Incumbent for Vanilla Approach: {incumbent_vanilla}")
-    train_result_vanilla_score, train_result_vanilla_info = target_function_eval(incumbent_vanilla)
-    logger.info(f"Vanilla Approach Results: score={train_result_vanilla_score}")
+    # Train configuration for given number of seeds
+    logger.info(f"Gotten Incumbent for {args.approach_to_check} Approach: {incumbent}")
+    train_result_score, train_result_info = target_function_multi(incumbent)
+
+    logger.info(f"{args.approach_to_check} Approach Results: score={train_result_score}")
+    with open(result_dir / "result_info.json", "w") as result_file:
+        json.dump(train_result_info, result_file)
