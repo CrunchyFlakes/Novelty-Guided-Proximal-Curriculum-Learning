@@ -60,21 +60,7 @@ def target_function_configurable(config: Configuration, env_name: str, env_size:
     torch.manual_seed(seed)
     # Generate seeds
     seeds = list(map(int, np.random.randint(low=0, high=1000, size=n_seeds)))
-    results = [train(config, env_name, env_size, seed=train_seed) for train_seed in seeds]
-    scores, infos = zip(*results)
-    return float(np.mean(scores)), infos
-
-def train_pickleable(input: dict):
-    return train(**input)
-
-def target_function_multiprocessing(config: Configuration, env_name: str, env_size: int, seed: int = 0, n_seeds: int = 1) -> tuple[float, dict]:
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    # Generate seeds
-    seeds = list(map(int, np.random.randint(low=0, high=1000, size=n_seeds)))
-    pool = multiprocessing.Pool(n_seeds)
-    train_inputs = [{"config": curr_config, "env_name": curr_env_name, "env_size": curr_env_size, "seed": curr_seed} for curr_config, curr_env_name, curr_env_size, curr_seed in product([config], [env_name], [env_size], seeds)]
-    results = pool.map(train_pickleable, train_inputs)
+    results = [train(*initialize_model_and_env(config, env_name, env_size, seed=train_seed)) for train_seed in seeds]
     scores, infos = zip(*results)
     return float(np.mean(scores)), infos
 
@@ -91,8 +77,7 @@ def make_env(config_approach: Mapping[str, Any], env_name: str, env_kwargs: dict
     env = ImgObsKeyWrapper(get_prox_curr_env(env_class, **env_kwargs))
     return env, env_base
 
-def train(config: Configuration, env_name: str, env_size: int, seed: int = 0) -> tuple[float, dict]:
-    logger.debug("Training new config")
+def initialize_model_and_env(config: Configuration, env_name: str, env_size: int, seed: int = 0) -> tuple[PPO, gym.Env]:
     config_ppo = get_config_for_module(config, "sb_ppo")
     config_ppo_lr = get_config_for_module(config, "sb_lr")
     config_policy= get_config_for_module(config, "policy")
@@ -100,15 +85,16 @@ def train(config: Configuration, env_name: str, env_size: int, seed: int = 0) ->
 
     env, env_base = make_env(config_approach, env_name, {"size": env_size})
     model = PPO("MlpPolicy", env=env, **dict(config_ppo), learning_rate=get_linear_fn(config_ppo_lr["start_lr"], config_ppo_lr["end_lr"], config_ppo_lr["end_fraction"]), policy_kwargs=create_sb_policy_kwargs(config_policy), seed=seed)
-
-    # Setup env to use agents value network
     env.unwrapped.set_agent(model)  # type: ignore
     # Have to get the novelty function here and not inside "setup_start_state_picking", because it has to see the wrapper
     novelty_function = get_novelty_function(config_approach, env)
     env.unwrapped.setup_start_state_picking(config_approach, novelty_function)  # type: ignore
     env.reset()  # workaround for minigrid bug
 
-    score, timesteps_left, score_history = learn(model, timesteps=MAX_TIMESTEPS, eval_env=env_base, eval_every_n_steps=10000, early_terminate=True, early_termination_threshold=0.95)
+    return model, env_base
+
+def train(model: PPO, env_eval: gym.Env) -> tuple[float, dict]:
+    score, timesteps_left, score_history = learn(model, timesteps=MAX_TIMESTEPS, eval_env=env_eval, eval_every_n_steps=10000, early_terminate=True, early_termination_threshold=0.95)
 
     # real multiobjective is not that useful here, because the end score is what really counts
     # mean_train_eval_score is to get a better signal when there is no reward at the end, but the agent found something during evaluation runs while training
@@ -129,7 +115,7 @@ def learn(model: OnPolicyAlgorithm, timesteps: int, eval_env: gym.Env, eval_ever
         timesteps_left -= steps_to_learn
 
         score = evaluate_policy(model, eval_env,  n_eval_episodes=10)[0]
-        score_history[timesteps - timesteps_left] = score
+        score_history[timesteps - timesteps_left] = float(score)
         logger.debug(f"Model at {timesteps - timesteps_left}/{timesteps} with {score=}")
         if score >= early_termination_threshold and early_terminate:
             break
@@ -144,8 +130,6 @@ def run_hpo(name: str, configspace: ConfigurationSpace, scenario_params: dict, f
     incumbent: Configuration = smac.optimize()  # type: ignore  # type fixed in next two lines
     if incumbent is list:
         incumbent = incumbent[0]
-    logger.info(f"Skipping HPO for {name} Approach, using default configuration")
-    incumbent = configspace.get_default_configuration()
     return incumbent
 
 if __name__ == "__main__":
@@ -155,17 +139,18 @@ if __name__ == "__main__":
     parser.add_argument("--workers", type=int, required=True)
     parser.add_argument("--env_name", type=str, required=True)
     parser.add_argument("--env_size", type=int, required=True)
-    parser.add_argument("--mode", choices=["hpo", "load"], required=True)
-    parser.add_argument("--n_seeds_hpo", type=int, required=True, help="Number of seeds to use during HPO of a single model to get a more stable result. Not really needed, because SMAC actually evaluates configs multiple times if they are promising.")
-    parser.add_argument("--n_seeds_eval", type=int, required=True, help="Number of seeds to use during evaluation after HPO")
+    parser.add_argument("--mode", choices=["hpo", "eval"], required=True)
+    parser.add_argument("--n_seeds_hpo", type=int, required=False, help="Number of seeds to use during HPO of a single model to get a more stable result. Not really needed, because SMAC actually evaluates configs multiple times if they are promising.")
+    parser.add_argument("--n_seeds_eval", type=int, required=False, help="Number of seeds to use during evaluation after HPO")
+    parser.add_argument("--eval_seed", type=int, required=False)
     parser.add_argument("--result_dir", type=PosixPath, required=True)
     parser.add_argument("--approach_to_check", choices=["comb", "prox", "novel", "vanilla"], required=True)
     args = parser.parse_args()
 
 
-    target_function_single = partial(target_function_configurable, env_name=args.env_name, env_size=args.env_size, n_seeds=args.n_seeds_hpo)  # only one worker, otherwise SMAC can't use multiple workers
-    target_function_multi = partial(target_function_multiprocessing, env_name=args.env_name, env_size=args.env_size, n_seeds=args.n_seeds_eval)
-    result_dir = args.result_dir / args.approach_to_check
+    target_function = partial(target_function_configurable, env_name=args.env_name, env_size=args.env_size, n_seeds=args.n_seeds_hpo)
+    eval_function = partial(target_function_configurable, env_name=args.env_name, env_size=args.env_size, n_seeds=args.n_seeds_eval, seed=args.eval_seed)
+    result_dir = args.result_dir / f"{args.env_name}{args.env_size}{args.approach_to_check}"
 
     match args.mode:
         case "hpo":  # We will have to create the result dir
@@ -184,33 +169,35 @@ if __name__ == "__main__":
                     raise NotImplementedError(f"Approach {args.approach_to_check} not implemented.")
 
             facade_params = {
-                "logging_level": logging.INFO,
+                "logging_level": logging.DEBUG,
             }
             scenario_params = {
                 "n_trials": args.trials,
                 "n_workers": args.workers,
                 "use_default_config": True,
-                "output_directory": args.smac_output_dir,
+                "output_directory": result_dir / "smac",
             }
-            incumbent = run_hpo(name=args.approach_to_check, configspace=configspace, scenario_params=scenario_params, facade_params=facade_params, target_function_smac=target_function_single)
+            incumbent = run_hpo(name=args.approach_to_check, configspace=configspace, scenario_params=scenario_params, facade_params=facade_params, target_function_smac=target_function)
 
             # Save configuration
             configspace.to_json(result_dir / "configspace.json")
             with open(result_dir / "config.json", "w") as config_file:
-                json.dump(dict(incumbent), config_file)
+                incumbent_converted = {key: value.item() if type(value).__module__ == "numpy" else value for key, value in dict(incumbent).items()}
+                json.dump(incumbent_converted, config_file)
+            print("Incumbent saved to directory, you can now load it")
 
-        case "load":  # There already has to be a result dir (the given one). We will only evaluate it
+        case "eval":  # There already has to be a result dir (the given one). We will only evaluate it
             configspace = ConfigurationSpace.from_json(result_dir / "configspace.json")
             with open(result_dir / "config.json", "r") as config_file:
                 incumbent = Configuration(configuration_space=configspace, values=json.load(config_file))
+            # Train configuration for given number of seeds
+            logger.info(f"Gotten Incumbent for {args.approach_to_check} Approach: {incumbent}")
+            train_result_score, train_result_info = eval_function(incumbent)
 
+            logger.info(f"{args.approach_to_check} Approach Results: score={train_result_score}")
+            with open(result_dir / "result_info.json", "w") as result_file:
+                json.dump(train_result_info, result_file)
         case _:
             raise NotImplementedError(f"mode {args.mode} not implemented.")
 
-    # Train configuration for given number of seeds
-    logger.info(f"Gotten Incumbent for {args.approach_to_check} Approach: {incumbent}")
-    train_result_score, train_result_info = target_function_multi(incumbent)
 
-    logger.info(f"{args.approach_to_check} Approach Results: score={train_result_score}")
-    with open(result_dir / "result_info.json", "w") as result_file:
-        json.dump(train_result_info, result_file)
