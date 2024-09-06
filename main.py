@@ -106,19 +106,20 @@ def train(config: Configuration, env_name: str, env_size: int, seed: int = 0) ->
     env.unwrapped.setup_start_state_picking(config_approach, novelty_function)  # type: ignore
     env.reset()  # workaround for minigrid bug
 
-    score, timesteps_left, mean_train_eval_score = learn(model, timesteps=MAX_TIMESTEPS, eval_env=env_base, eval_every_n_steps=10000, early_terminate=True, early_termination_threshold=0.9)
+    score, timesteps_left, score_history = learn(model, timesteps=MAX_TIMESTEPS, eval_env=env_base, eval_every_n_steps=10000, early_terminate=True, early_termination_threshold=0.9)
 
     # real multiobjective is not that useful here, because the end score is what really counts
     # mean_train_eval_score is to get a better signal
     # timesteps_left / MAX_TIMESTEPS is meant as a tie-breaker
+    mean_train_eval_score = float(np.mean(list(score_history.values())))
     combined_score = (-1) * (10*score + mean_train_eval_score + timesteps_left / MAX_TIMESTEPS)
-    return combined_score, {"reward": score, "mean_train_eval_score": mean_train_eval_score, "time_left_ratio": timesteps_left / MAX_TIMESTEPS}
+    return combined_score, {"reward": score, "mean_train_eval_score": mean_train_eval_score, "time_left_ratio": timesteps_left / MAX_TIMESTEPS, "score_history": score_history}
 
 
-def learn(model: OnPolicyAlgorithm, timesteps: int, eval_env: gym.Env, eval_every_n_steps: int, early_terminate: bool = False, early_termination_threshold: float = 0.0) -> tuple[float, int, float]:
+def learn(model: OnPolicyAlgorithm, timesteps: int, eval_env: gym.Env, eval_every_n_steps: int, early_terminate: bool = False, early_termination_threshold: float = 0.0) -> tuple[float, int, dict[str, float]]:
     timesteps_left = timesteps
     score = 0
-    score_history = []
+    score_history = {}
     while timesteps_left > 0:
         # Learn
         steps_to_learn = min(timesteps_left, eval_every_n_steps)
@@ -126,14 +127,12 @@ def learn(model: OnPolicyAlgorithm, timesteps: int, eval_env: gym.Env, eval_ever
         timesteps_left -= steps_to_learn
 
         score = evaluate_policy(model, eval_env,  n_eval_episodes=10)[0]
-        score_history.append(score)
+        score_history[timesteps - timesteps_left] = score
         logger.debug(f"Model at {timesteps - timesteps_left}/{timesteps} with {score=}")
         if score >= early_termination_threshold and early_terminate:
             break
-    mean_score_history = float(np.mean(score_history))
+    mean_score_history = float(np.mean(list(score_history.values())))
     logger.info(f"Model finished with {score=}, {timesteps_left=}, {mean_score_history=}")
-    return float(score), timesteps_left, mean_score_history
-
 def evaluate_config(config: Configuration, seed: int = 0):
     pass
 
@@ -160,7 +159,7 @@ if __name__ == "__main__":
         "use_default_config": True,
         "output_directory": args.smac_output_dir,
     }
-    target_function = partial(target_function_configurable, env_name=args.env_name, env_size=args.env_size, n_seeds=args.n_seeds_train)  # only one worker so it is still pickleable
+    target_function = partial(target_function_configurable, env_name=args.env_name, env_size=args.env_size, n_seeds=args.n_seeds_train)  # only one worker, otherwise SMAC can't use multiple workers
     target_function_eval = partial(target_function_multiprocessing, env_name=args.env_name, env_size=args.env_size, n_seeds=args.n_seeds_eval)
 
 
@@ -178,7 +177,7 @@ if __name__ == "__main__":
         incumbent_comb = configspace_comb.get_default_configuration()
     logger.info(f"Gotten Incumbent for Combined Approach: {incumbent_comb}")
     train_result_comb_score, train_result_comb_info = target_function_eval(incumbent_comb)
-    logger.info(f"Combined Approach Results: score={train_result_comb_score}, {train_result_comb_info}")
+    logger.info(f"Combined Approach Results: score={train_result_comb_score}")
 
 
     # Train Model with Proximal Curriculum
@@ -195,8 +194,7 @@ if __name__ == "__main__":
         incumbent_prox = configspace_prox.get_default_configuration()
     logger.info(f"Gotten Incumbent for Proximal Curriculum: {incumbent_prox}")
     train_result_prox_score, train_result_prox_info = target_function_eval(incumbent_prox)
-    logger.info(f"Proximal Curriculum Approach Results: score={train_result_prox_score}, {train_result_prox_info}")
-
+    logger.info(f"Proximal Curriculum Approach Results: score={train_result_prox_score}")
 
 
     # Train model with State Novelty
@@ -213,7 +211,7 @@ if __name__ == "__main__":
         incumbent_nov = configspace_nov.get_default_configuration()
     logger.info(f"Gotten Incumbent for State Novelty Approach: {incumbent_nov}")
     train_result_nov_score, train_result_nov_info = target_function_eval(incumbent_nov)
-    logger.info(f"State Novelty Approach Results: score={train_result_nov_score}, {train_result_nov_info}")
+    logger.info(f"State Novelty Approach Results: score={train_result_nov_score}")
 
 
     # Train vanilla model
@@ -230,4 +228,4 @@ if __name__ == "__main__":
         incumbent_vanilla = configspace_vanilla.get_default_configuration()
     logger.info(f"Gotten Incumbent for Vanilla Approach: {incumbent_vanilla}")
     train_result_vanilla_score, train_result_vanilla_info = target_function_eval(incumbent_vanilla)
-    logger.info(f"Vanilla Approach Results: score={train_result_vanilla_score}, {train_result_vanilla_info}")
+    logger.info(f"Vanilla Approach Results: score={train_result_vanilla_score}")
