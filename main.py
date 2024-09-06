@@ -140,13 +140,13 @@ if __name__ == "__main__":
     parser.add_argument("--n_seeds_eval", type=int, required=False, help="Number of seeds to use during evaluation after HPO")
     parser.add_argument("--eval_seed", type=int, required=False)
     parser.add_argument("--result_dir", type=PosixPath, required=True)
-    parser.add_argument("--approach_to_check", choices=["comb", "prox", "novel", "vanilla"], required=True)
+    parser.add_argument("--approach_to_check", choices=["comb", "prox", "nov", "vanilla"], required=True)
     args = parser.parse_args()
 
 
     target_function = partial(target_function_configurable, env_name=args.env_name, env_size=args.env_size, n_seeds=args.n_seeds_hpo)
     eval_function = partial(target_function_configurable, env_name=args.env_name, env_size=args.env_size, n_seeds=args.n_seeds_eval, seed=args.eval_seed)
-    result_dir = args.result_dir / f"{args.env_name}{args.env_size}{args.approach_to_check}"
+    result_dir = args.result_dir / f"{args.env_name}{args.env_size}_{args.approach_to_check}"
 
     match args.mode:
         case "hpo":  # We will have to create the result dir
@@ -157,7 +157,7 @@ if __name__ == "__main__":
                     configspace = get_ppo_config_space(use_prox_curr=True, use_state_novelty=True)
                 case "prox":
                     configspace = get_ppo_config_space(use_prox_curr=True, use_state_novelty=False)
-                case "novel":
+                case "nov":
                     configspace = get_ppo_config_space(use_prox_curr=False, use_state_novelty=True)
                 case "vanilla":
                     configspace = get_ppo_config_space(use_prox_curr=False, use_state_novelty=False)

@@ -19,4 +19,6 @@ conda activate /bigwork/nhwptopm/.conda/envs/adrl
 
 export WANDB_MODE=offline
 
-python /bigwork/nhwptopm/adrl_proximal_curriculum_w_novelty/main.py --workers=20 --trials=100 --env_name unlock --env_size 5 --n_seeds_train 1 --n_seeds_eval 2 --smac_output_dir smac3_output/${SLURM_JOB_ID}_${SLURM_JOB_NAME}
+
+python /bigwork/nhwptopm/adrl_proximal_curriculum_w_novelty/main.py --approach_to_check nov --trials 100 --workers 20 --env_name doorkey --env_size 8 --mode hpo --n_seeds_hpo 1 --result_dir ./results/${SLURM_JOB_ID}_${SLURM_JOB_NAME}
+python main.py --approach_to_check nov --env_name doorkey --env_size 8 --mode eval --n_seeds_eval 5 --result_dir ./results/${SLURM_JOB_ID}_${SLURM_JOB_NAME} --eval_seed 0
