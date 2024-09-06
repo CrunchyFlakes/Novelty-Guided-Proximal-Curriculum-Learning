@@ -52,7 +52,7 @@ def create_sb_policy_kwargs(config: Mapping[str, Any]) -> dict:
         }
     }
 
-def target_function_configurable(config: Configuration, env_name: str, env_size: int, seed: int = 0, n_seeds: int = 1, n_workers: int = 1) -> tuple[float, dict]:  # TODO: change number of seeds to evaluate on
+def target_function_configurable(config: Configuration, env_name: str, env_size: int, seed: int = 0, n_seeds: int = 1) -> tuple[float, dict]:
     np.random.seed(seed)
     # Generate seeds
     seeds = list(map(int, np.random.randint(low=0, high=1000, size=n_seeds)))
@@ -144,8 +144,8 @@ if __name__ == "__main__":
         "use_default_config": True,
         "output_directory": args.smac_output_dir,
     }
-    target_function = partial(target_function_configurable, env_name=args.env_name, env_size=args.env_size, n_seeds=args.n_seeds_train, n_workers=1)  # only one worker so it is still pickleable
-    target_function_multiprocessing = partial(target_function_configurable, env_name=args.env_name, env_size=args.env_size, n_seeds=args.n_seeds_eval, n_workers=args.workers)
+    target_function = partial(target_function_configurable, env_name=args.env_name, env_size=args.env_size, n_seeds=args.n_seeds_train)  # only one worker so it is still pickleable
+    target_function_eval = partial(target_function_configurable, env_name=args.env_name, env_size=args.env_size, n_seeds=args.n_seeds_eval)
 
 
     # Train Model with Proximal Curriculum and State Novelty
@@ -161,7 +161,7 @@ if __name__ == "__main__":
         logger.info("Skipping HPO for Combined Approach, using default configuration")
         incumbent_comb = configspace_comb.get_default_configuration()
     logger.info(f"Gotten Incumbent for Combined Approach: {incumbent_comb}")
-    train_result_comb_score, train_result_comb_info = target_function_multiprocessing(incumbent_comb)
+    train_result_comb_score, train_result_comb_info = target_function_eval(incumbent_comb)
     logger.info(f"Combined Approach Results: score={train_result_comb_score}, {train_result_comb_info}")
 
 
@@ -178,7 +178,7 @@ if __name__ == "__main__":
         logger.info("Skipping HPO for Proximal Curriculum, using default configuration")
         incumbent_prox = configspace_prox.get_default_configuration()
     logger.info(f"Gotten Incumbent for Proximal Curriculum: {incumbent_prox}")
-    train_result_prox_score, train_result_prox_info = target_function_multiprocessing(incumbent_prox)
+    train_result_prox_score, train_result_prox_info = target_function_eval(incumbent_prox)
     logger.info(f"Proximal Curriculum Approach Results: score={train_result_prox_score}, {train_result_prox_info}")
 
 
@@ -196,7 +196,7 @@ if __name__ == "__main__":
         logger.info("Skipping HPO for State Novelty, using default configuration")
         incumbent_nov = configspace_nov.get_default_configuration()
     logger.info(f"Gotten Incumbent for State Novelty Approach: {incumbent_nov}")
-    train_result_nov_score, train_result_nov_info = target_function_multiprocessing(incumbent_nov)
+    train_result_nov_score, train_result_nov_info = target_function_eval(incumbent_nov)
     logger.info(f"State Novelty Approach Results: score={train_result_nov_score}, {train_result_nov_info}")
 
 
@@ -213,5 +213,5 @@ if __name__ == "__main__":
         logger.info("Skipping HPO for Vanilla, using default configuration")
         incumbent_vanilla = configspace_vanilla.get_default_configuration()
     logger.info(f"Gotten Incumbent for Vanilla Approach: {incumbent_vanilla}")
-    train_result_vanilla_score, train_result_vanilla_info = target_function_multiprocessing(incumbent_vanilla)
+    train_result_vanilla_score, train_result_vanilla_info = target_function_eval(incumbent_vanilla)
     logger.info(f"Vanilla Approach Results: score={train_result_vanilla_score}, {train_result_vanilla_info}")
