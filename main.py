@@ -54,8 +54,10 @@ def target_function_configurable(config: Configuration, env_name: str, env_size:
     np.random.seed(seed)
     torch.manual_seed(seed)
     # Generate seeds
-    seeds = [1000 * seed + subseed for subseed in range(n_seeds)]
-    print(seeds)
+    if n_seeds > 0:  # We are evaluating and get small enough seeds to multiply them without going out of bounds
+        seeds = [seed + subseed for subseed in range(n_seeds)]
+    else:  # SMAC is passing seeds and we only get one seed
+        seeds = [seed]
     results = [train(*initialize_model_and_env(config, env_name, env_size, seed=train_seed)) for train_seed in seeds]
     scores, infos = zip(*results)
     return float(np.mean(scores)), infos
@@ -172,6 +174,7 @@ if __name__ == "__main__":
                 "n_workers": args.workers,
                 "use_default_config": True,
                 "output_directory": result_dir / "smac",
+                "deterministic": True,
             }
             incumbent = run_hpo(name=args.approach_to_check, configspace=configspace, scenario_params=scenario_params, facade_params=facade_params, target_function_smac=target_function)
 
