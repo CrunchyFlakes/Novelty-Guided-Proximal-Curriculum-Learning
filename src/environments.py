@@ -21,8 +21,9 @@ from typing import Any, Callable
 # +--------------------------------------------------------------------------------------------+
 
 class FullImgObsWrapper(FullyObsWrapper):
+    # currently not used because it made the results worse
     def __init__(self, env):
-        """A wrapper that makes image the only observation.
+        """A wrapper that returns the whole grid instead of only the part in front of the agent
 
         Args:
             env: The environment to apply the wrapper
@@ -32,6 +33,16 @@ class FullImgObsWrapper(FullyObsWrapper):
 
     def observation(self, obs):
         return super().observation(obs)["image"]
+
+class ImgObsKeyWrapper(ImgObsWrapper):
+    def __init__(self, env):
+        super().__init__(env)
+        self.space_to_flatten = spaces.Dict({"image": self.observation_space, "key": spaces.Discrete(2)})
+        self.observation_space = spaces.flatten_space(self.space_to_flatten)
+
+
+    def observation(self, obs):
+        return spaces.flatten(self.space_to_flatten, {"image": obs["image"], "key": self.carrying != None})
 
 def get_prox_curr_env(env_class, *args, **kwargs):
     class ProxCurrMinigridWrapper(env_class):
@@ -46,7 +57,7 @@ def get_prox_curr_env(env_class, *args, **kwargs):
 
             def __init__(self, env: "ProxCurrMinigridWrapper"):
                 self.env = env
-                self.wrapped_env = FullImgObsWrapper(self.env)
+                self.wrapped_env = ImgObsKeyWrapper(self.env)
 
             def __call__(self, state: tuple[tuple[int, int], int, tuple[int, int] | None, list[tuple[tuple[int, int], tuple[bool, bool]]]]) -> torch.Tensor:
                 agent_pos, agent_dir, pos_item_to_carry, doors_with_states = state
@@ -76,7 +87,6 @@ def get_prox_curr_env(env_class, *args, **kwargs):
                     obs_as_tensor(
                         self.wrapped_env.observation(self.env.gen_obs()), device="cpu"
                     )
-                    .permute(2, 0, 1)
                     .unsqueeze(0)
                 )  # TODO: set device properly
 

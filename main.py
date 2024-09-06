@@ -5,7 +5,7 @@ from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.utils import get_linear_fn
-from src.environments import get_prox_curr_env, FullImgObsWrapper
+from src.environments import get_prox_curr_env, FullImgObsWrapper, ImgObsKeyWrapper
 from minigrid.wrappers import ImgObsWrapper
 from src.hpo import get_ppo_config_space
 from src.util import get_novelty_function
@@ -69,8 +69,8 @@ def make_env(config_approach: Mapping[str, Any], env_name: str, env_kwargs: dict
             env_kwargs = {}
         case _:
             raise NotImplementedError(f"Starting env with name {env_name} is not supported.")
-    env_base = Monitor(FullImgObsWrapper(env_class(**env_kwargs)))
-    env = FullImgObsWrapper(get_prox_curr_env(env_class, **env_kwargs))
+    env_base = Monitor(ImgObsKeyWrapper(env_class(**env_kwargs)))
+    env = ImgObsKeyWrapper(get_prox_curr_env(env_class, **env_kwargs))
     return env, env_base
 
 def train(config: Configuration, env_name: str, env_size: int, seed: int = 0) -> tuple[float, dict]:
@@ -80,7 +80,7 @@ def train(config: Configuration, env_name: str, env_size: int, seed: int = 0) ->
     config_policy= get_config_for_module(config, "policy")
     config_approach = get_config_for_module(config, "approach")
 
-    env, env_base = make_env(config_approach, env_name, {"size": env_size, "max_steps": MAX_ENV_TIMESTEPS})
+    env, env_base = make_env(config_approach, env_name, {"size": env_size})
     model = PPO("MlpPolicy", env=env, **dict(config_ppo), learning_rate=get_linear_fn(config_ppo_lr["start_lr"], config_ppo_lr["end_lr"], config_ppo_lr["end_fraction"]), policy_kwargs=create_sb_policy_kwargs(config_policy), seed=seed)
 
     # Setup env to use agents value network
