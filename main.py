@@ -190,7 +190,7 @@ if __name__ == "__main__":
             train_result_score, train_result_info = eval_function(incumbent)
 
             logger.info(f"{args.approach_to_check} Approach Results: score={train_result_score}")
-            with open(result_dir / "result_info.json", "w") as result_file:
+            with open(result_dir / f"result_info_seed{args.eval_seed}.json", "w") as result_file:
                 json.dump(train_result_info, result_file)
         case _:
             raise NotImplementedError(f"mode {args.mode} not implemented.")
