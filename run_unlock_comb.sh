@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=20
-#SBATCH -J unlock
+#SBATCH -J unlock_comb
 #SBATCH --mem=32G
 #SBATCH -o slurm_outputs/slurm-%j.out
 #SBATCH --partition=ai
