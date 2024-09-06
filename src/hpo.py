@@ -27,7 +27,7 @@ def get_ppo_config_space(use_prox_curr: bool = True, use_state_novelty: bool = T
     configspace_sb_policy = ConfigurationSpace({})
     ### layer sizes
     max_layers = 5
-    policy_n_layers = Integer("policy_n_layers", (1, max_layers), default=2)
+    policy_n_layers = Integer("policy_n_layers", (1, max_layers), default=3)
     policy_layersizes = [Integer(f"policy_layer{i}_size", (1, 128), default=64) for i in range(max_layers)]
     policy_layersize_conds = [GreaterThanCondition(policy_layersizes[i], policy_n_layers, i) for i in range(1, max_layers)]
     configspace_sb_policy.add((policy_n_layers, *policy_layersizes, *policy_layersize_conds))
