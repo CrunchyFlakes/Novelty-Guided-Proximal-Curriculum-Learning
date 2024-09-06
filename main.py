@@ -62,6 +62,20 @@ def target_function_configurable(config: Configuration, env_name: str, env_size:
     scores, infos = zip(*results)
     return float(np.mean(scores)), infos
 
+def train_pickleable(input: dict):
+    return train(**input)
+
+def target_function_multiprocessing(config: Configuration, env_name: str, env_size: int, seed: int = 0, n_seeds: int = 1) -> tuple[float, dict]:
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    # Generate seeds
+    seeds = list(map(int, np.random.randint(low=0, high=1000, size=n_seeds)))
+    pool = multiprocessing.Pool(n_seeds)
+    train_inputs = [{"config": curr_config, "env_name": curr_env_name, "env_size": curr_env_size, "seed": curr_seed} for curr_config, curr_env_name, curr_env_size, curr_seed in product([config], [env_name], [env_size], seeds)]
+    results = pool.map(train_pickleable, train_inputs)
+    scores, infos = zip(*results)
+    return float(np.mean(scores)), infos
+
 def make_env(config_approach: Mapping[str, Any], env_name: str, env_kwargs: dict) -> tuple[gym.Env, gym.Env]:
     match env_name.lower():
         case "doorkey":
@@ -147,7 +161,7 @@ if __name__ == "__main__":
         "output_directory": args.smac_output_dir,
     }
     target_function = partial(target_function_configurable, env_name=args.env_name, env_size=args.env_size, n_seeds=args.n_seeds_train)  # only one worker so it is still pickleable
-    target_function_eval = partial(target_function_configurable, env_name=args.env_name, env_size=args.env_size, n_seeds=args.n_seeds_eval)
+    target_function_eval = partial(target_function_multiprocessing, env_name=args.env_name, env_size=args.env_size, n_seeds=args.n_seeds_eval)
 
 
     # Train Model with Proximal Curriculum and State Novelty
