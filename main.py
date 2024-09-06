@@ -51,6 +51,8 @@ def create_sb_policy_kwargs(config: Mapping[str, Any]) -> dict:
     }
 
 def target_function_configurable(config: Configuration, env_name: str, env_size: int, seed: int = 0, n_seeds: int = 1) -> tuple[float, dict]:
+    if seed is not int:  # Does SMAC sometimes pass multiple seeds? A comment in the documentation seemed like it, lets be sure
+        seed = 0
     np.random.seed(seed)
     torch.manual_seed(seed)
     # Generate seeds
@@ -174,7 +176,6 @@ if __name__ == "__main__":
                 "n_workers": args.workers,
                 "use_default_config": True,
                 "output_directory": result_dir / "smac",
-                "deterministic": True,
             }
             incumbent = run_hpo(name=args.approach_to_check, configspace=configspace, scenario_params=scenario_params, facade_params=facade_params, target_function_smac=target_function)
 
