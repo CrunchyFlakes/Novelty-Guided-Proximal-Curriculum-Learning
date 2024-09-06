@@ -12,6 +12,7 @@ from src.util import get_novelty_function
 from minigrid.envs import EmptyEnv, DoorKeyEnv, UnlockEnv
 import numpy as np
 from pathlib import PosixPath
+import torch
 
 from smac import HyperparameterOptimizationFacade, Scenario
 from ConfigSpace import Configuration, ConfigurationSpace
@@ -54,6 +55,7 @@ def create_sb_policy_kwargs(config: Mapping[str, Any]) -> dict:
 
 def target_function_configurable(config: Configuration, env_name: str, env_size: int, seed: int = 0, n_seeds: int = 1) -> tuple[float, dict]:
     np.random.seed(seed)
+    torch.manual_seed(seed)
     # Generate seeds
     seeds = list(map(int, np.random.randint(low=0, high=1000, size=n_seeds)))
     results = [train(config, env_name, env_size, seed=train_seed) for train_seed in seeds]
