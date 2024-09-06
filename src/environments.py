@@ -42,7 +42,7 @@ class ImgObsKeyWrapper(ImgObsWrapper):
 
 
     def observation(self, obs):
-        return spaces.flatten(self.space_to_flatten, {"image": obs["image"], "key": self.carrying != None})
+        return spaces.flatten(self.space_to_flatten, {"image": obs["image"], "key": self.env.carrying != None})
 
 def get_prox_curr_env(env_class, *args, **kwargs):
     class ProxCurrMinigridWrapper(env_class):
