@@ -3,13 +3,11 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.on_policy_algorithm import OnPolicyAlgorithm
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.utils import get_linear_fn
-from src.environments import get_prox_curr_env, FullImgObsWrapper, ImgObsKeyWrapper
-from minigrid.wrappers import ImgObsWrapper
+from src.environments import get_prox_curr_env, ImgObsKeyWrapper
 from src.hpo import get_ppo_config_space
 from src.util import get_novelty_function
-from minigrid.envs import EmptyEnv, DoorKeyEnv, UnlockEnv
+from minigrid.envs import DoorKeyEnv, UnlockEnv
 import numpy as np
 from pathlib import PosixPath
 import torch
@@ -19,9 +17,7 @@ from ConfigSpace import Configuration, ConfigurationSpace
 
 from typing import Callable, Any, Mapping
 import logging
-import multiprocessing
 from functools import partial
-from itertools import product
 import os
 import json
 
@@ -30,7 +26,6 @@ logging.root.setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
 
 MAX_TIMESTEPS = 500_000
-MAX_ENV_TIMESTEPS = 1_000
 
 def get_config_for_module(cfg: Configuration, module_name: str) -> dict[str, Any]:
     """
@@ -59,7 +54,7 @@ def target_function_configurable(config: Configuration, env_name: str, env_size:
     np.random.seed(seed)
     torch.manual_seed(seed)
     # Generate seeds
-    seeds = list(map(int, np.random.randint(low=0, high=1000, size=n_seeds)))
+    seeds = [10 * seed + subseed for subseed in range(n_seeds)]
     results = [train(*initialize_model_and_env(config, env_name, env_size, seed=train_seed)) for train_seed in seeds]
     scores, infos = zip(*results)
     return float(np.mean(scores)), infos
@@ -135,8 +130,8 @@ def run_hpo(name: str, configspace: ConfigurationSpace, scenario_params: dict, f
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--trials", type=int, required=True)
-    parser.add_argument("--workers", type=int, required=True)
+    parser.add_argument("--trials", type=int, required=False)
+    parser.add_argument("--workers", type=int, required=False)
     parser.add_argument("--env_name", type=str, required=True)
     parser.add_argument("--env_size", type=int, required=True)
     parser.add_argument("--mode", choices=["hpo", "eval"], required=True)
@@ -169,7 +164,7 @@ if __name__ == "__main__":
                     raise NotImplementedError(f"Approach {args.approach_to_check} not implemented.")
 
             facade_params = {
-                "logging_level": logging.DEBUG,
+                "logging_level": logging.INFO,
             }
             scenario_params = {
                 "n_trials": args.trials,
@@ -179,6 +174,7 @@ if __name__ == "__main__":
             }
             incumbent = run_hpo(name=args.approach_to_check, configspace=configspace, scenario_params=scenario_params, facade_params=facade_params, target_function_smac=target_function)
 
+            logger.info(f"Gotten Incumbent for {args.approach_to_check} Approach: {incumbent}")
             # Save configuration
             configspace.to_json(result_dir / "configspace.json")
             with open(result_dir / "config.json", "w") as config_file:
@@ -191,7 +187,6 @@ if __name__ == "__main__":
             with open(result_dir / "config.json", "r") as config_file:
                 incumbent = Configuration(configuration_space=configspace, values=json.load(config_file))
             # Train configuration for given number of seeds
-            logger.info(f"Gotten Incumbent for {args.approach_to_check} Approach: {incumbent}")
             train_result_score, train_result_info = eval_function(incumbent)
 
             logger.info(f"{args.approach_to_check} Approach Results: score={train_result_score}")
