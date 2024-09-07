@@ -5,7 +5,7 @@
 #SBATCH --mem=32G
 #SBATCH -o slurm_outputs/slurm-%j.out
 #SBATCH --partition=ai
-#SBATCH --time=12:00:00
+#SBATCH --time=16:00:00
 
 #SBATCH --mail-user=m.toepperwien@stud.uni-hannover.de
 #SBATCH --mail-type=FAIL,END
