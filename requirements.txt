@@ -6,3 +6,5 @@ SMAC
 swig
 tqdm
 rich
+seaborn
+matplotlib
