@@ -25,7 +25,7 @@ logging.basicConfig()
 logging.root.setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
 
-MAX_TIMESTEPS = 500_000
+MAX_TIMESTEPS = 1_000_000
 
 def get_config_for_module(cfg: Configuration, module_name: str) -> dict[str, Any]:
     """
