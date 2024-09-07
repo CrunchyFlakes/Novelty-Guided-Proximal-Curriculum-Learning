@@ -5,6 +5,7 @@ import pandas as pd
 import argparse
 from pathlib import PosixPath
 import json
+import os
 
 def parse_result_info(result_infos: list[dict[str, float]], fill: bool) -> pd.DataFrame:
     df = pd.DataFrame([result_info["score_history"] for result_info in result_infos]).transpose()
@@ -26,6 +27,8 @@ if __name__ == "__main__":
     parser.add_argument("--context", type=str, required=True, help="Seaborn context")
     parser.add_argument("--output_dir", type=PosixPath, required=True)
     args = parser.parse_args()
+
+    os.makedirs(args.output_dir, exist_ok=True)
 
     with open(args.comb_result, "r") as result_file:
         comb_result = json.load(result_file)
@@ -59,10 +62,13 @@ if __name__ == "__main__":
     matplotlib.use('qtAgg')
     sns.set_theme(context=args.context, style="darkgrid")
 
+    xlim = result_infos["Timestep"].max()
+
     # Results per Approach, full plot
     fig, ax = plt.subplots()
     sns.lineplot(data=result_infos_filled, x="Timestep", y="Score", hue="Approach").set(title="Training Curves per Approach")
     ax.set_ylim(bottom=0, top=1)
+    ax.set_xlim(left=0, right=xlim)
     plt.savefig(args.output_dir / f"results_per_approach_{args.context}.svg")
 
 
@@ -72,22 +78,26 @@ if __name__ == "__main__":
     fig, ax = plt.subplots()
     sns.lineplot(data=result_infos[result_infos["Approach"] == "Combined"], x="Timestep", y="Score", hue="Seed").set(title="Training Curves Combined")
     ax.set_ylim(bottom=0, top=1)
+    ax.set_xlim(left=0, right=xlim)
     plt.savefig(args.output_dir / f"results_combined_{args.context}.svg")
 
     ## Proximal Curriculum
     fig, ax = plt.subplots()
     sns.lineplot(data=result_infos[result_infos["Approach"] == "Proximal Curriculum"], x="Timestep", y="Score", hue="Seed").set(title="Training Curves Proximal Curriculum")
     ax.set_ylim(bottom=0, top=1)
+    ax.set_xlim(left=0, right=xlim)
     plt.savefig(args.output_dir / f"results_prox_{args.context}.svg")
 
     ## State Novelty
     fig, ax = plt.subplots()
     sns.lineplot(data=result_infos[result_infos["Approach"] == "State Novelty (RND)"], x="Timestep", y="Score", hue="Seed").set(title="Training Curves State Novelty (RND)")
     ax.set_ylim(bottom=0, top=1)
+    ax.set_xlim(left=0, right=xlim)
     plt.savefig(args.output_dir / f"results_nov_{args.context}.svg")
 
     ## Vanilla
     fig, ax = plt.subplots()
     sns.lineplot(data=result_infos[result_infos["Approach"] == "Vanilla"], x="Timestep", y="Score", hue="Seed").set(title="Training Curves Vanilla")
     ax.set_ylim(bottom=0, top=1)
+    ax.set_xlim(left=0, right=xlim)
     plt.savefig(args.output_dir / f"results_vanilla_{args.context}.svg")
