@@ -55,6 +55,7 @@ def pick_starting_state(
     
 
     combined_dist = gamma_tradeoff * pos_dist + (1 - gamma_tradeoff) * novelty_dist
+    combined_dist = combined_dist / combined_dist.sum()  # fix rounding errors
 
     return state_candidates[np.random.choice(len(state_candidates), p=combined_dist)]
 
@@ -126,4 +127,4 @@ class RND:
             loss.backward()
             self.optimizer.step()
 
-        return self.loss_novelty(out_learned, out_fixed).detach().clone()
+        return self.loss_novelty(out_learned, out_fixed).mean(axis=1).detach().clone()
