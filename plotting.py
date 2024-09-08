@@ -103,10 +103,13 @@ if __name__ == "__main__":
     xlim = result_infos["Timestep"].max()
 
     # Results per Approach, full plot
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(13, 7))
     sns.lineplot(data=result_infos_filled, x="Timestep", y="Score", hue="Approach")
     ax.set_ylim(bottom=0, top=1)
     ax.set_xlim(left=0, right=xlim)
+    if args.context == "talk":
+        plt.xticks(rotation=45)
+    plt.tight_layout()
     plt.savefig(args.output_dir / f"results_per_approach_{args.context}.svg")
 
     # Results one plot per approach showing different seeds
@@ -121,6 +124,9 @@ if __name__ == "__main__":
     )
     ax.set_ylim(bottom=0, top=1)
     ax.set_xlim(left=0, right=xlim)
+    if args.context == "talk":
+        plt.xticks(rotation=45)
+    plt.tight_layout()
     plt.savefig(args.output_dir / f"results_combined_{args.context}.svg")
 
     ## Proximal Curriculum
@@ -133,6 +139,9 @@ if __name__ == "__main__":
     )
     ax.set_ylim(bottom=0, top=1)
     ax.set_xlim(left=0, right=xlim)
+    if args.context == "talk":
+        plt.xticks(rotation=45)
+    plt.tight_layout()
     plt.savefig(args.output_dir / f"results_prox_{args.context}.svg")
 
     ## State Novelty
@@ -145,6 +154,9 @@ if __name__ == "__main__":
     )
     ax.set_ylim(bottom=0, top=1)
     ax.set_xlim(left=0, right=xlim)
+    if args.context == "talk":
+        plt.xticks(rotation=45)
+    plt.tight_layout()
     plt.savefig(args.output_dir / f"results_nov_{args.context}.svg")
 
     ## Vanilla
@@ -157,4 +169,7 @@ if __name__ == "__main__":
     )
     ax.set_ylim(bottom=0, top=1)
     ax.set_xlim(left=0, right=xlim)
+    if args.context == "talk":
+        plt.xticks(rotation=45)
+    plt.tight_layout()
     plt.savefig(args.output_dir / f"results_vanilla_{args.context}.svg")
