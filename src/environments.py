@@ -20,6 +20,7 @@ from typing import Any, Callable
 # | All classes here act as a wrapper to allow for curriculum learning based on starting state |
 # +--------------------------------------------------------------------------------------------+
 
+
 class FullImgObsWrapper(FullyObsWrapper):
     # currently not used because it made the results worse
     def __init__(self, env):
@@ -34,15 +35,21 @@ class FullImgObsWrapper(FullyObsWrapper):
     def observation(self, obs):
         return super().observation(obs)["image"]
 
+
 class ImgObsKeyWrapper(ImgObsWrapper):
     def __init__(self, env):
         super().__init__(env)
-        self.space_to_flatten = spaces.Dict({"image": self.observation_space, "key": spaces.Discrete(2)})
+        self.space_to_flatten = spaces.Dict(
+            {"image": self.observation_space, "key": spaces.Discrete(2)}
+        )
         self.observation_space = spaces.flatten_space(self.space_to_flatten)
 
-
     def observation(self, obs):
-        return spaces.flatten(self.space_to_flatten, {"image": obs["image"], "key": self.env.carrying != None})
+        return spaces.flatten(
+            self.space_to_flatten,
+            {"image": obs["image"], "key": self.env.carrying != None},
+        )
+
 
 def get_prox_curr_env(env_class, *args, **kwargs):
     class ProxCurrMinigridWrapper(env_class):
@@ -59,13 +66,26 @@ def get_prox_curr_env(env_class, *args, **kwargs):
                 self.env = env
                 self.wrapped_env = ImgObsKeyWrapper(self.env)
 
-            def __call__(self, state: tuple[tuple[int, int], int, tuple[int, int] | None, list[tuple[tuple[int, int], tuple[bool, bool]]]]) -> torch.Tensor:
+            def __call__(
+                self,
+                state: tuple[
+                    tuple[int, int],
+                    int,
+                    tuple[int, int] | None,
+                    list[tuple[tuple[int, int], tuple[bool, bool]]],
+                ],
+            ) -> torch.Tensor:
                 agent_pos, agent_dir, pos_item_to_carry, doors_with_states = state
 
                 # save current state
                 original_agent_pos = self.env.agent_pos
                 original_agent_dir = self.env.agent_dir
-                original_doors_with_states = {door: (door.is_open, door.is_locked) for door in [self.env.grid.get(*pos) for pos, _ in doors_with_states]}
+                original_doors_with_states = {
+                    door: (door.is_open, door.is_locked)
+                    for door in [
+                        self.env.grid.get(*pos) for pos, _ in doors_with_states
+                    ]
+                }
 
                 # set agent to new state
                 self.env.agent_pos = agent_pos
@@ -83,11 +103,10 @@ def get_prox_curr_env(env_class, *args, **kwargs):
                     self.env.carrying.cur_pos = np.array([-1, -1])
                     self.env.grid.set(*pos_item_to_carry, None)
 
-                obs_tensor = (
-                    obs_as_tensor(
-                        self.wrapped_env.observation(self.env.gen_obs()), device="cpu"
-                    )
-                    .unsqueeze(0)
+                obs_tensor = obs_as_tensor(
+                    self.wrapped_env.observation(self.env.gen_obs()), device="cpu"
+                ).unsqueeze(
+                    0
                 )  # TODO: set device properly
 
                 # We don't need to restore agent_pos and agent_dir, as they will be set always after calls to this
@@ -97,7 +116,10 @@ def get_prox_curr_env(env_class, *args, **kwargs):
                     self.env.grid.set(*pos_item_to_carry, self.env.carrying)
                     self.env.carrying = None
                 ## restore doors
-                for door, (door_is_open, door_is_locked) in original_doors_with_states.items():
+                for door, (
+                    door_is_open,
+                    door_is_locked,
+                ) in original_doors_with_states.items():
                     door.is_open = door_is_open
                     door.is_locked = door_is_locked
 
@@ -116,23 +138,55 @@ def get_prox_curr_env(env_class, *args, **kwargs):
             self.agent = agent
             return
 
-        def generate_state_candidates(self) -> list[tuple[tuple[int, int], int, tuple[int, int] | None, list[tuple[tuple[int, int], tuple[bool, bool]]]]]:
+        def generate_state_candidates(
+            self,
+        ) -> list[
+            tuple[
+                tuple[int, int],
+                int,
+                tuple[int, int] | None,
+                list[tuple[tuple[int, int], tuple[bool, bool]]],
+            ]
+        ]:
             """Generate all states that the agent could be in in this environment
 
             Returns:
                 list of states
             """
-            positions = list(product(range(0, self.grid.width), range(0, self.grid.height)))
+            positions = list(
+                product(range(0, self.grid.width), range(0, self.grid.height))
+            )
             valid_positions = filter(lambda pos: self.grid.get(*pos) is None, positions)
             directions = range(0, 4)
-            carryable_positions = [pos for pos in positions if self.grid.get(*pos) and self.grid.get(*pos).can_pickup()] + [None]
-            door_positions = [pos for pos in positions if isinstance(self.grid.get(*pos), Door)]
-            door_states: list[tuple[bool, bool]] = [(True, False), (False, False), (False, True)]  # open, closed, locked
+            carryable_positions = [
+                pos
+                for pos in positions
+                if self.grid.get(*pos) and self.grid.get(*pos).can_pickup()
+            ] + [None]
+            door_positions = [
+                pos for pos in positions if isinstance(self.grid.get(*pos), Door)
+            ]
+            door_states: list[tuple[bool, bool]] = [
+                (True, False),
+                (False, False),
+                (False, True),
+            ]  # open, closed, locked
             door_positions_and_states = list(product(door_positions, door_states))
 
-            return list(product(valid_positions, directions, carryable_positions, [door_positions_and_states]))
+            return list(
+                product(
+                    valid_positions,
+                    directions,
+                    carryable_positions,
+                    [door_positions_and_states],
+                )
+            )
 
-        def setup_start_state_picking(self, config: Configuration, novelty_function: Callable[[torch.Tensor], torch.Tensor]):
+        def setup_start_state_picking(
+            self,
+            config: Configuration,
+            novelty_function: Callable[[torch.Tensor], torch.Tensor],
+        ):
             self.beta_proximal = config["beta_proximal"]
             self.gamma_tradeoff = config["gamma_tradeoff"]
             self.novelty_function = novelty_function
@@ -165,17 +219,15 @@ def get_prox_curr_env(env_class, *args, **kwargs):
                 raise ValueError("Bound agent does not use ActorCriticPolicy")
 
             # Now set starting state
-            starting_pos, starting_dir, pos_item_to_carry, doors_with_states = pick_starting_state(
-                value_function=value_function,
-                novelty_function=self.novelty_function,  # TODO: set this properly
-                state_candidates=self.generate_state_candidates(),
-                state_to_obs=self.state_to_obs,  # type: ignore  # this is a Callable but LSP doesn't know
-                beta_proximal=(
-                    self.beta_proximal
-                ),
-                gamma_tradeoff=(
-                    self.gamma_tradeoff
-                ),
+            starting_pos, starting_dir, pos_item_to_carry, doors_with_states = (
+                pick_starting_state(
+                    value_function=value_function,
+                    novelty_function=self.novelty_function,  # TODO: set this properly
+                    state_candidates=self.generate_state_candidates(),
+                    state_to_obs=self.state_to_obs,  # type: ignore  # this is a Callable but LSP doesn't know
+                    beta_proximal=(self.beta_proximal),
+                    gamma_tradeoff=(self.gamma_tradeoff),
+                )
             )
             self.agent_pos = starting_pos
             self.agent_dir = starting_dir
