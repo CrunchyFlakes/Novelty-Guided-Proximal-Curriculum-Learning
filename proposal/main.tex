@@ -12,6 +12,7 @@
 \usepackage{xcolor}     
 \usepackage{algorithm}
 \usepackage{algpseudocode}
+\usepackage{cleveref}
 
 % Add your own as neccessary
 
@@ -57,29 +58,73 @@ Similar to the previous approach \cite{deepmimic} teach an agent to animate char
 \textbf{Go-Explore}~\citep{go_explore} is divided into two phases. In phase 1, called \textit{Explore until solved}, it explores from the starting state by making 100 steps where each step has a 95\% chance to repeat the previous action and 5\% to take a random action. For promising trajectories this step is done again starting from the end of the trajectory.\\
 In phase 2 the found high-promising trajectories are used as the expert trajectory, first setting states at the end of the trajectories and then working its way back as proposed by \cite{montezuma_demonstration}.
 
-\textbf{Proximal Curriculum Learning} (PL) uses the agents value function to estimate the probability of success for a given state
+These methods either rely on expert demonstration being available, exploring states first to be able to pick them and/or do not allow the agent to set the pacing of task-difficulty itself. The next two covered methods are the two which will be combined in this work to cover those weaknesses.
+
+\textbf{Random Network Distillation} (RND) approximates state novelty by using two different neural networks. One is initialized and stays fixed. The other one tries to approximate the fixed one. When inputting states in both, the loss steers the approximating one towards the fixed one, resulting in less differences between the two outputs for one state if seen enough. The loss is therefore a measure of novelty of the state. This approach and its implementation will be covered more thoroughly in \cref{sec:rnd}.
+
+\textbf{Proximal Curriculum Learning} (PL) uses the agents value function to estimate the probability of success for a given state. The bigger the value, the higher the probability of success. Out of this a distribution is created over the states which favors probabilities around 0.5. This approach will be explained in more detail in \cref{sec:prox_detail}. \\
+Although being self-paced when the value function results values corresponding to the agents beliefs, directly after initialization the value function is random and setting starting states purely by difficulty may result in improper exploration. To mitigate this problem this work will incorporate RND additionally, which should help with exploration and in extension faster value function convergence.
 
 
 
 \section{Approach}
-This is where you describe what you did. Good things to include are {\color{orange} colorcoding}, pseudocode as in Algorithm~\ref{alg:code} and equations like in Equation~\ref{eq:pi}.
+\label{sec:Approach}
+\subsection{Proximal Curriculum Learning}
+\label{sec:prox_detail}
+\cite{prox_curr} use the probability of success ($PoS$) to pick starting states which are close to the agents capability.
+To calculate this probability they actually proposed two methods, using rollouts or using the value function of the agent. We will only look at the value function approach, because rollouts are more expensive and we cover the value functions shortcomings by using state novelty.
+
+The starting state distribution is calculated given the following equations. $S_{init}$ specifies the pool of starting states and $PoS_V$ corresponds to the approximated probability of success given the value function at step t:
+
+\[  PoS_V(s) = \frac{V(s) - V_{min}}{V_{max} - V_{min}} \]
+
+\begin{equation}\label{dist:prox_curr}
+  \mathbb{P}_{Prox}(s_0^{(t)} = s) \propto \exp(\beta_{Prox} * PoS_V(s) * (1 - PoS_V(s))) \qquad s \in S_{init}
+\end{equation}
+
+$\beta$ is a hyperparameter which allows us to smooth or exaggerate the distribution. $PoS$ values close to 1 get low probabilities to avoid starting from states the agent already can solve, $PoS$ values close to 0 get low probabilities to avoid starting from states that are too hard.
+
+\subsection{Random Network Distillation}
+\label{sec:rnd}
+\cite{rnd} use two neural networks, of which one is fixed while the other learns to approximate the fixed one given the occurring states as input.
+
+The original approach uses the novelty approximation to add an intrinsic reward to the agent, but, since we already have the ability to set starting states, this work only uses it to calculate a distribution similar to \cref{sec:prox_detail} over the states in $S_{init}$.
+
+To obtain this distribution the following calculations are made. $SN^{(t)}$ denotes the state novelty given the parameters at step t of the approximating network and $J^{(t)}$ denotes the loss given the parameters at step t:
+
+\[ SN^{(t)}(s) = \frac{J^{(t)}}{J_{max}^{(t)}} \qquad s \in S_{init} \]
+
+\begin{equation}\label{dist:rnd}
+  \mathbb{P}_{RND}(s_0^{(t)} = s) \propto \exp(\beta_{Nov} * SN^{(t)}(s)) \qquad s \in S_{init}
+\end{equation}
+
+\subsection{Combining both approaches}
+\label{sec:comb}
+
+To combine both approaches it suffices to lay both distributions (\cref{dist:prox_curr}, \cref{dist:rnd}) on top of each other using a hyperparameter $\gamma$. Additionally one can update the set of starting states $S_init$ on every step t.:
+
+\begin{equation}\label{dist:comb}
+  \mathbb{P}(s_0^{(t)} = s) = \gamma * \mathbb{P}_{Prox}(s_0^{(t)}) + (1 - \gamma) * \mathbb{P}_{RND}(s_0^{(t)}) \qquad s \in S_{init}^{(t)}
+\end{equation}
 
 \begin{algorithm}[H]
-    \caption{A great RL algorithm.}
+    \caption{Training Algorithm}
     \label{alg:code}
     \begin{algorithmic}
-        \Require environment $e$, algorithm $A$
+      \Require environment $e$, Agent with policy $\pi^{(0)}$ and value function $V^{(0)}$, Starting states $S_{init}^{(0)}$, number of episodes N, performance threshold, $\beta_{Prox}$, $\beta_{RND}$, $\gamma$ \eta
+        \State t = 0
+        \State reward = 0
+        \While {$t < N \land reward < \eta$}
+        \State sample $s_0^{(t)} \sim \mathbb{P}(s_0^{(t)} = s)$ using $S_{init}^{(t)}, \beta_{Prox}$, $\beta_{RND}$, $\gamma$ (\cref{dist:prox_curr}, \cref{dist:rnd}, \cref{dist:comb})
+          \State Take step in $A$ using action from $\pi^{(t)}$
+          \State Train $\pi^{(t)}$, $V^{(t)}$ using replay buffer and new observation
+          \State Train $J^{(t)}$ on new observation
+          \State Calculate new $S_{init}^{(t)}$
+        \EndWhile \\
         \Return policy $\pi$
-        \While TRUE
-            \State Train $A$ on $e$
-        \EndWhile
     \end{algorithmic}
 \end{algorithm}
 
-\begin{equation}
-    \label{eq:pi}
-    \pi \in \Pi, \pi: \mathcal{S} \mapsto \mathcal{A}
-\end{equation}
 
 \section{Experiments}
 Here are your results and their description. Some things to look out for:
