@@ -31,4 +31,4 @@ def get_novelty_function(
                 optimizer=config["rnd_optimizer"],
             )
         case _:
-            return lambda input: torch.ones(input.shape[0])
+            return lambda input: torch.rand(input.shape[0])

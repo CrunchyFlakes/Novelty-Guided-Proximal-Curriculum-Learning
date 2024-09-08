@@ -190,6 +190,7 @@ def get_prox_curr_env(env_class, *args, **kwargs):
             self.beta_proximal = config["beta_proximal"]
             self.gamma_tradeoff = config["gamma_tradeoff"]
             self.novelty_function = novelty_function
+            self.beta_novelty = config["beta_novelty"]
 
         def reset(
             self,
@@ -225,7 +226,8 @@ def get_prox_curr_env(env_class, *args, **kwargs):
                     novelty_function=self.novelty_function,  # TODO: set this properly
                     state_candidates=self.generate_state_candidates(),
                     state_to_obs=self.state_to_obs,  # type: ignore  # this is a Callable but LSP doesn't know
-                    beta_proximal=(self.beta_proximal),
+                    beta_proximal=self.beta_proximal,
+                    beta_novelty=self.beta_novelty,
                     gamma_tradeoff=(self.gamma_tradeoff),
                 )
             )

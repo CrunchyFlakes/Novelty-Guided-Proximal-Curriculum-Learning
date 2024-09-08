@@ -71,10 +71,14 @@ def get_ppo_config_space(
         }
     )
     if use_prox_curr:
-        beta_proximal = Float("beta_proximal", (0.0, 50.0), default=20)
+        beta_proximal = Float("beta_proximal", (0.0, 50.0), default=20.0)
     else:
         beta_proximal = Constant("beta_proximal", 0.0)
-    configspace_approach.add(beta_proximal)
+    if use_state_novelty:
+        beta_novelty = Float("beta_novelty", (0.0, 50.0), default=20.0)
+    else:
+        beta_novelty = Constant("beta_novelty", 0.0)
+    configspace_approach.add((beta_proximal, beta_novelty))
     if use_prox_curr and use_state_novelty:
         configspace_approach.add(Float("gamma_tradeoff", (0.0, 1.0), default=0.5))
     elif use_prox_curr:

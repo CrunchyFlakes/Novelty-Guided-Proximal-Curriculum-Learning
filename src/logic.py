@@ -23,6 +23,7 @@ def pick_starting_state(
     state_candidates: Iterable[State],
     state_to_obs: Callable[[State], ObsType],
     beta_proximal: Number,
+    beta_novelty: Number,
     gamma_tradeoff: Number,
 ) -> State:
     state_candidates = list(state_candidates)
@@ -48,8 +49,10 @@ def pick_starting_state(
         .clone()
         .numpy()
     )
-    novelty_dist = state_novelty / np.sum(state_novelty)
-    novelty_dist = pos_dist
+    state_novelty_normalized = state_novelty / np.max(state_novelty)
+    state_novelty_exp = np.exp(beta_novelty * state_novelty_normalized)
+    novelty_dist = state_novelty_exp / np.sum(state_novelty_exp)
+    
 
     combined_dist = gamma_tradeoff * pos_dist + (1 - gamma_tradeoff) * novelty_dist
 
