@@ -4,7 +4,7 @@
 
 \usepackage[T1]{fontenc}    % use 8-bit T1 fonts
 \usepackage{hyperref}       % hyperlinks
-\usepackage{url}            % simple URL typesetting
+\usepackage{xurl}            % simple URL typesetting
 \usepackage{booktabs}       % professional-quality tables
 \usepackage{amsfonts}       % blackboard math symbols
 \usepackage{nicefrac}       % compact symbols for 1/2, etc.
@@ -16,18 +16,20 @@
 % Add your own as neccessary
 
 \title{Novelty-Guided Proximal Curriculum Learning}
-\author{Jan Malte Töpperwien \\ \url{https://github.com/CrunchyFlakes/Novelty-Guided-Proximal-Curriculum-Learning?tab=readme-ov-file#editing-this-readme}}
+\author{Jan Malte Töpperwien}
 
 \begin{document}
 
 \maketitle
 \begin{abstract}
     An abstract is a short summary of your project. It should really only be a single paragraph, not much more than 10 lines.
+
+    The project can be found at: \url{https://github.com/CrunchyFlakes/Novelty-Guided-Proximal-Curriculum-Learning}
 \end{abstract}
 \section{Introduction}
 Reinforcement learning (RL) has shown to be able to solve difficult tasks in simulated environments (\citep{human_level_control}, \citep{continuous_control}, \citep{rl_go}). However, to solve real-world problems an agent has to often solve problems which exhibit large action- and state spaces, sparse rewards and changing tasks to get to a goal. This poses the problem of exploring these spaces and, even with good exploration getting close to the goal, the agent often does not get a reward due to the sparsity of these. Additionaly, training data gathering on real-world problems through e.g. simulation is often expensive and exploration therefore has to be done efficiently.
 
-One proposed method to tackle this problem is \textit{curriculum learning}~\citep{curr}. Curriculum learning applies the pedagogical idea of giving a student increasingly difficult tasks to RL algorithms. This allows agent to get to the reward more often on easier tasks and only after that to progress to more difficult tasks, which would have previously led to seldom rewards at best. By choosing a proper curriculum one also lowers the amount of needed environment steps, by only generating data which actually lets the agent learn. \\
+One proposed method to tackle this problem is \textit{curriculum learning} (CL)~\citep{curr}. Curriculum learning applies the pedagogical idea of giving a student increasingly difficult tasks to RL algorithms. This allows agent to get to the reward more often on easier tasks and only after that to progress to more difficult tasks, which would have previously led to seldom rewards at best. By choosing a proper curriculum one also lowers the amount of needed environment steps, by only generating data which actually lets the agent learn. \\
 A possibility to implement curriculum learning is by setting the starting state closer to the goal and increasing this distance over the course of training. One approach to measure this distance is given by \cite{prox_curr}, where they measure the difficulty of the task by using the value function of the agent and proceed to give the agent tasks appropriate to its current learning progress. One weakness of this approach is, that at the beginning of learning the value function has not converged to proper values and therefore unsuitable starting states may be chosen.
 
 To explore the state space, \textit{state novelty} methods like random network distillation~\citep{rnd} have proven to be successfull in steering the agent towards underexplored states. This is usually done by adding an intrinsic reward to the agent for finding new states.
@@ -35,11 +37,29 @@ To explore the state space, \textit{state novelty} methods like random network d
 This work aims to combine curriculum learning as done in \cite{prox_curr} with random network distillation~\citep{rnd}. By setting starting states also based on state novelty, the state space is properly explored from the beginning. This is crucial to let the agent properly explore the state space and overcome the random initialization of the value function, leading to proper curriculum learning.
 
 \section{Related Work}
-Here you cite related papers, either by referring to \cite{parkerholder-jair22} or as a reference at the end of the sentence~\citep{parkerholder-jair22}. 
-Add your references to the "references.bib" file. 
-Pay attention: if you get the citation from arxiv, it will only give you that version - but you should cite the published one if it exists! 
-Therefore you should look for the paper on dblp.org and use that citation. 
-You can delete things like the bibsource and timestamp, but keep the important information like authors, title, journal, year or DOI.
+
+
+\textbf{Reverse Curriculum Generation}~\citep{reverse_curr_gen} uses random actions beginning from the starting state to sample nearby starting states that are easy enough for the agent to solve. It then proceeds to do some rollouts used for learning, sampling uniformly from these states. The starting states are then rated using the collected rollouts to prune states which are too easy or too hard. Then the whole procedure is done again, until the agent has finished learning.
+
+\textbf{Prioritizing Starting States for Reinforcement Learning}~\citep{prio_start_states} derives a list of starting states using states already discovered in the training process. A limited length buffer is used to collect these states and is processed in different fashions:
+\begin{enumerate}
+  \item Sampling uniformly from these states.
+  \item Using prioritized sampling similar to the \textit{prioritized experience replay}~\citep{prio_exp_replay}.
+  \item Sampling from states that are part of trajectories yielding high returns to address sparse reward domains.
+\end{enumerate}
+
+
+Multiple approaches exploit expert knowledge to generate suitable starting states. \\
+\cite{overcoming_exploration} first sample a trajectory from a given set of export demonstrations and then uniformly sample a starting state out of that trajectory. \\
+Similar to the previous approach \cite{deepmimic} teach an agent to animate characters inside a physical simulation by sampling a starting state out of a motion demonstration (e.g. backflip) for a given character. \\
+\cite{montezuma_demonstration} exploit only one expert trajectory by first setting starting states from the end of the trajectory and then working its way back to the trajectorys start. The agent therefore starts training on easy states near the goal and ends training at the starting state.
+
+\textbf{Go-Explore}~\citep{go_explore} is divided into two phases. In phase 1, called \textit{Explore until solved}, it explores from the starting state by making 100 steps where each step has a 95\% chance to repeat the previous action and 5\% to take a random action. For promising trajectories this step is done again starting from the end of the trajectory.\\
+In phase 2 the found high-promising trajectories are used as the expert trajectory, first setting states at the end of the trajectories and then working its way back as proposed by \cite{montezuma_demonstration}.
+
+\textbf{Proximal Curriculum Learning} (PL) uses the agents value function to estimate the probability of success for a given state
+
+
 
 \section{Approach}
 This is where you describe what you did. Good things to include are {\color{orange} colorcoding}, pseudocode as in Algorithm~\ref{alg:code} and equations like in Equation~\ref{eq:pi}.
