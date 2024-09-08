@@ -34,12 +34,9 @@ def pick_starting_state(
     normalized_state_values = (state_values - np.min(state_values)) / (
         np.max(state_values) - np.min(state_values)
     )
-    pos_estimates = (
+    pos_estimates = np.exp(
         beta_proximal * normalized_state_values * (1 - normalized_state_values)
     )
-    if np.sum(pos_estimates) == 0:
-        # This should be uniformly distributed
-        pos_estimates += 1
     pos_dist = pos_estimates / np.sum(pos_estimates)
 
     # Calculate distribution over starting states based on state novelty
