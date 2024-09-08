@@ -15,8 +15,8 @@
 
 % Add your own as neccessary
 
-\title{ADRL Project Proposal Template}
-\author{Theo Retisch \\ \url{github.com/theo/adrl_project}}
+\title{Novelty-Guided Proximal Curriculum Learning}
+\author{Jan Malte Töpperwien \\ \url{https://github.com/CrunchyFlakes/adrl_proximal_curriculum_w_novelty}}
 
 \begin{document}
 
@@ -25,7 +25,14 @@
     An abstract is a short summary of your project. It should really only be a single paragraph, not much more than 10 lines.
 \end{abstract}
 \section{Introduction}
-This is your motivational section: describe the setting, your research questions and why they're important! This should be pretty similar to a paper's introduction section, but can be a bit shorter.
+Reinforcement learning (RL) has shown to be able to solve difficult tasks in simulated environments (\citep{human_level_control}, \citep{continuous_control}, \citep{rl_go}). However, to solve real-world problems an agent has to often solve problems which exhibit large action- and state spaces, sparse rewards and changing tasks to get to a goal. This poses the problem of exploring these spaces and, even with good exploration getting close to the goal, the agent often does not get a reward due to the sparsity of these. Additionaly, training data gathering on real-world problems through e.g. simulation is often expensive and exploration therefore has to be done efficiently.
+
+One proposed method to tackle this problem is \textit{curriculum learning}~\citep{curr}. Curriculum learning applies the pedagogical idea of giving a student increasingly difficult tasks to RL algorithms. This allows agent to get to the reward more often on easier tasks and only after that to progress to more difficult tasks, which would have previously led to seldom rewards at best. By choosing a proper curriculum one also lowers the amount of needed environment steps, by only generating data which actually lets the agent learn. \\
+A possibility to implement curriculum learning is by setting the starting state closer to the goal and increasing this distance over the course of training. One approach to measure this distance is given by \cite{prox_curr}, where they measure the difficulty of the task by using the value function of the agent and proceed to give the agent tasks appropriate to its current learning progress. One weakness of this approach is, that at the beginning of learning the value function has not converged to proper values and therefore unsuitable starting states may be chosen.
+
+To explore the state space, \textit{state novelty} methods like random network distillation~\citep{rnd} have proven to be successfull in steering the agent towards underexplored states. This is usually done by adding an intrinsic reward to the agent for finding new states.
+
+This work aims to combine curriculum learning as done in \cite{prox_curr} with random network distillation~\citep{rnd}. By setting starting states also based on state novelty, the state space is properly explored from the beginning. This is crucial to let the agent properly explore the state space and overcome the random initialization of the value function, leading to proper curriculum learning.
 
 \section{Related Work}
 Here you cite related papers, either by referring to \cite{parkerholder-jair22} or as a reference at the end of the sentence~\citep{parkerholder-jair22}. 
