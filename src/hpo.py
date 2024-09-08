@@ -71,7 +71,7 @@ def get_ppo_config_space(
         }
     )
     if use_prox_curr:
-        beta_proximal = Float("beta_proximal", (0.0, 1.0), default=0.75)
+        beta_proximal = Float("beta_proximal", (0.0, 50.0), default=20)
     else:
         beta_proximal = Constant("beta_proximal", 0.0)
     configspace_approach.add(beta_proximal)
