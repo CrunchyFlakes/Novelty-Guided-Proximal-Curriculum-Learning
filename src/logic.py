@@ -19,13 +19,13 @@ type Number = float | int | np.number  # TODO: add more?
 
 def pick_starting_state(
     value_function: Callable[[State], Number],
-    novelty_function: Callable[[torch.Tensor], torch.Tensor],
+    novelty_function: Callable,
     state_candidates: Iterable[State],
     state_to_obs: Callable[[State], ObsType],
     beta_proximal: Number,
     beta_novelty: Number,
     gamma_tradeoff: Number,
-) -> State:
+) -> tuple:
     state_candidates = list(state_candidates)
     states_as_obs = list(map(state_to_obs, state_candidates))
     # Calculate distribution over starting states based on probability of success
@@ -43,7 +43,7 @@ def pick_starting_state(
     # Calculate distribution over starting states based on state novelty
     state_novelty = (
         novelty_function(
-            torch.stack(list(map(torch.flatten, states_as_obs))).to(torch.float32)
+            torch.stack(list(map(torch.flatten, states_as_obs))).to(torch.float32), learn_network=False
         )
         .detach()
         .clone()
@@ -57,7 +57,8 @@ def pick_starting_state(
     combined_dist = gamma_tradeoff * pos_dist + (1 - gamma_tradeoff) * novelty_dist
     combined_dist = combined_dist / combined_dist.sum()  # fix rounding errors
 
-    return state_candidates[np.random.choice(len(state_candidates), p=combined_dist)]
+    chosen_state = np.random.choice(len(state_candidates), p=combined_dist)
+    return state_candidates[chosen_state], states_as_obs[chosen_state]
 
 
 # +--------------------------+

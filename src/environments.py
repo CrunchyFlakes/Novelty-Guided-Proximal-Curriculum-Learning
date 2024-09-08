@@ -80,6 +80,7 @@ def get_prox_curr_env(env_class, *args, **kwargs):
                 # save current state
                 original_agent_pos = self.env.agent_pos
                 original_agent_dir = self.env.agent_dir
+                original_carrying = self.env.carrying
                 original_doors_with_states = {
                     door: (door.is_open, door.is_locked)
                     for door in [
@@ -95,10 +96,8 @@ def get_prox_curr_env(env_class, *args, **kwargs):
                     door.is_open = door_is_open
                     door.is_locked = door_is_locked
 
-                ## env should be freshly reset, nothing should be carried so no backup needed
-                assert self.env.carrying == None
-                ## pick up item if given
-                if pos_item_to_carry:
+                ## pick up item if given and not already carrying
+                if pos_item_to_carry and not original_carrying:
                     self.env.carrying = self.env.grid.get(*pos_item_to_carry)
                     self.env.carrying.cur_pos = np.array([-1, -1])
                     self.env.grid.set(*pos_item_to_carry, None)
@@ -109,9 +108,12 @@ def get_prox_curr_env(env_class, *args, **kwargs):
                     0
                 )  # TODO: set device properly
 
-                # We don't need to restore agent_pos and agent_dir, as they will be set always after calls to this
+                self.env.agent_pos = original_agent_pos
+                self.env.agent_dir = original_agent_dir
                 ## restore item in env
-                if pos_item_to_carry:
+                if original_carrying:
+                    self.env.carrying = original_carrying
+                elif pos_item_to_carry:
                     self.env.carrying.cur_pos = np.array(pos_item_to_carry)
                     self.env.grid.set(*pos_item_to_carry, self.env.carrying)
                     self.env.carrying = None
@@ -185,7 +187,7 @@ def get_prox_curr_env(env_class, *args, **kwargs):
         def setup_start_state_picking(
             self,
             config: Configuration,
-            novelty_function: Callable[[torch.Tensor], torch.Tensor],
+            novelty_function: Callable,
         ):
             self.beta_proximal = config["beta_proximal"]
             self.gamma_tradeoff = config["gamma_tradeoff"]
@@ -220,7 +222,7 @@ def get_prox_curr_env(env_class, *args, **kwargs):
                 raise ValueError("Bound agent does not use ActorCriticPolicy")
 
             # Now set starting state
-            starting_pos, starting_dir, pos_item_to_carry, doors_with_states = (
+            (starting_pos, starting_dir, pos_item_to_carry, doors_with_states), start_obs = (
                 pick_starting_state(
                     value_function=value_function,
                     novelty_function=self.novelty_function,  # TODO: set this properly
@@ -249,6 +251,33 @@ def get_prox_curr_env(env_class, *args, **kwargs):
             # Return first observation
             obs = super().gen_obs()
 
+            # novelty learning
+            self.novelty_function(start_obs.to(torch.float32), learn_network=True)
+
             return obs, {}
+
+        def _get_curr_state(self):
+            positions = list(
+                product(range(0, self.grid.width), range(0, self.grid.height))
+            )
+            carrying_pos = tuple(self.carrying.cur_pos.tolist()) if self.carrying else None
+            door_positions = [
+                pos for pos in positions if isinstance(self.grid.get(*pos), Door)
+            ]
+            doors_with_states = [
+                (pos, (self.grid.get(*pos).is_open, self.grid.get(*pos).is_locked)) for pos in door_positions
+            ]
+            return (self.agent_pos, self.agent_dir, carrying_pos, doors_with_states)
+
+        def step(
+            self, action
+        ):
+            to_return = super().step(action)
+            # novelty learning
+            obs = self.state_to_obs((self._get_curr_state()), )
+            self.novelty_function(obs.to(torch.float32), learn_network=True)
+
+            return to_return
+
 
     return ProxCurrMinigridWrapper(*args, **kwargs)
