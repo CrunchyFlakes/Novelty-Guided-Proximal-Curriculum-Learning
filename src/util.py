@@ -7,7 +7,6 @@ from typing import Callable, Any
 from functools import reduce
 
 def dummy_novelty(input, learn_network=False):
-    print('this')
     return torch.rand(input.shape[0])
 
 def get_novelty_function(
