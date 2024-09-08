@@ -104,9 +104,7 @@ if __name__ == "__main__":
 
     # Results per Approach, full plot
     fig, ax = plt.subplots()
-    sns.lineplot(data=result_infos_filled, x="Timestep", y="Score", hue="Approach").set(
-        title="Training Curves per Approach"
-    )
+    sns.lineplot(data=result_infos_filled, x="Timestep", y="Score", hue="Approach")
     ax.set_ylim(bottom=0, top=1)
     ax.set_xlim(left=0, right=xlim)
     plt.savefig(args.output_dir / f"results_per_approach_{args.context}.svg")
@@ -120,7 +118,7 @@ if __name__ == "__main__":
         x="Timestep",
         y="Score",
         hue="Seed",
-    ).set(title="Training Curves Combined")
+    )
     ax.set_ylim(bottom=0, top=1)
     ax.set_xlim(left=0, right=xlim)
     plt.savefig(args.output_dir / f"results_combined_{args.context}.svg")
@@ -132,7 +130,7 @@ if __name__ == "__main__":
         x="Timestep",
         y="Score",
         hue="Seed",
-    ).set(title="Training Curves Proximal Curriculum")
+    )
     ax.set_ylim(bottom=0, top=1)
     ax.set_xlim(left=0, right=xlim)
     plt.savefig(args.output_dir / f"results_prox_{args.context}.svg")
@@ -144,7 +142,7 @@ if __name__ == "__main__":
         x="Timestep",
         y="Score",
         hue="Seed",
-    ).set(title="Training Curves State Novelty (RND)")
+    )
     ax.set_ylim(bottom=0, top=1)
     ax.set_xlim(left=0, right=xlim)
     plt.savefig(args.output_dir / f"results_nov_{args.context}.svg")
@@ -156,7 +154,7 @@ if __name__ == "__main__":
         x="Timestep",
         y="Score",
         hue="Seed",
-    ).set(title="Training Curves Vanilla")
+    )
     ax.set_ylim(bottom=0, top=1)
     ax.set_xlim(left=0, right=xlim)
     plt.savefig(args.output_dir / f"results_vanilla_{args.context}.svg")
