@@ -6,6 +6,9 @@ import torch
 from typing import Callable, Any
 from functools import reduce
 
+def dummy_novelty(input, learn_network=False):
+    print('this')
+    return torch.rand(input.shape[0])
 
 def get_novelty_function(
     config: dict[str, Any], env: gym.Env
@@ -31,4 +34,4 @@ def get_novelty_function(
                 optimizer=config["rnd_optimizer"],
             )
         case _:
-            return lambda input: torch.rand(input.shape[0])
+            return dummy_novelty
