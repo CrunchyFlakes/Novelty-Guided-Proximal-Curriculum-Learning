@@ -1,15 +1,12 @@
 import gymnasium as gym
 import numpy as np
-from minigrid.envs import EmptyEnv
 from gymnasium import spaces
 from minigrid.wrappers import FullyObsWrapper, ImgObsWrapper
-from minigrid.core.grid import Grid
 from minigrid.core.world_object import Door
 from stable_baselines3.common.on_policy_algorithm import OnPolicyAlgorithm
 from stable_baselines3.common.utils import obs_as_tensor
 from gymnasium.core import ObsType
 from .logic import pick_starting_state
-from .util import get_novelty_function
 import torch
 from ConfigSpace import Configuration
 
@@ -56,7 +53,7 @@ class ImgObsKeyWrapper(ImgObsWrapper):
         )
 
 
-def get_prox_curr_env(env_class, *args, **kwargs):
+def get_prox_curr_env(env_class, *args, **kwargs) -> gym.Env:
     """Create an env which support novelty-guided proximal curriculum learning using the given base class
 
     You have to set the agent manually as stable baselines already needs the environment during initialization. (set_agent)

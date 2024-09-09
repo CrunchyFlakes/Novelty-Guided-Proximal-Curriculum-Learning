@@ -5,7 +5,6 @@ from ConfigSpace import (
     Constant,
     EqualsCondition,
     Categorical,
-    AndConjunction,
     GreaterThanCondition,
 )
 

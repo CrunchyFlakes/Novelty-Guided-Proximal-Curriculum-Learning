@@ -1,7 +1,6 @@
 from typing import Callable, Any, Iterable
 import numpy as np
 from gymnasium.core import ObsType
-from ConfigSpace import Configuration
 import torch
 from torch import nn
 
