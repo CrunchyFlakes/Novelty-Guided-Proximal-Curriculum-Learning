@@ -5,9 +5,9 @@ It implements Novelty-Guided Proximal Curriculum Learning, which is based on Pro
 
 This project tries to speed up learning on sparse reward environments in which starting states may be set freely (e.g. simulations).
 
-It uses PPO from Stable-Baselines3 [[4](#bibliography)] as the agent.  
-Doorkey-8x8 and Unlock from MiniGrid [[5](#bibliography)] were used as the environments.  
-Hyperparameters were optimized using [[3](#bibliography)].  
+It uses PPO from Stable-Baselines3 [[3](#bibliography)] as the agent.  
+Doorkey-8x8 and Unlock from MiniGrid [[4](#bibliography)] were used as the environments.  
+Hyperparameters were optimized using [[5](#bibliography)].  
 
 <!-- GETTING STARTED -->
 ## Getting Started
@@ -71,8 +71,8 @@ Here is a short exempt out of the proposal. Read `proposal/proposal.pdf` for mor
 
 [2]Y. Burda, H. Edwards, A. J. Storkey, and O. Klimov, “Exploration by Random Network Distillation,” CoRR, vol. abs/1810.12894, 2018, [Online]. Available: http://arxiv.org/abs/1810.12894
 
-[3]M. Lindauer et al., “SMAC3: A Versatile Bayesian Optimization Package for Hyperparameter Optimization,” Journal of Machine Learning Research, vol. 23, no. 54, pp. 1–9, 2022, [Online]. Available: http://jmlr.org/papers/v23/21-0888.html
+[3]A. Raffin, A. Hill, A. Gleave, A. Kanervisto, M. Ernestus, and N. Dormann, “Stable-Baselines3: Reliable Reinforcement Learning Implementations,” Journal of Machine Learning Research, vol. 22, no. 268, pp. 1–8, 2021, [Online]. Available: http://jmlr.org/papers/v22/20-1364.html
 
-[4]A. Raffin, A. Hill, A. Gleave, A. Kanervisto, M. Ernestus, and N. Dormann, “Stable-Baselines3: Reliable Reinforcement Learning Implementations,” Journal of Machine Learning Research, vol. 22, no. 268, pp. 1–8, 2021, [Online]. Available: http://jmlr.org/papers/v22/20-1364.html
+[4]M. Chevalier-Boisvert et al., “Minigrid & Miniworld: Modular & Customizable Reinforcement Learning Environments for Goal-Oriented Tasks,” CoRR, vol. abs/2306.13831, 2023.
 
-[5]M. Chevalier-Boisvert et al., “Minigrid & Miniworld: Modular & Customizable Reinforcement Learning Environments for Goal-Oriented Tasks,” CoRR, vol. abs/2306.13831, 2023.
+[5]M. Lindauer et al., “SMAC3: A Versatile Bayesian Optimization Package for Hyperparameter Optimization,” Journal of Machine Learning Research, vol. 23, no. 54, pp. 1–9, 2022, [Online]. Available: http://jmlr.org/papers/v23/21-0888.html
