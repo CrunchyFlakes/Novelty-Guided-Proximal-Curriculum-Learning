@@ -96,6 +96,8 @@ To obtain this distribution the following calculations are made. $SN^{(t)}$ deno
 
 \[ SN^{(t)}(s) = \frac{J^{(t)}}{J_{max}^{(t)}} \qquad s \in S_{init} \]
 
+$SN$ is only normalized using the maximum, to allow the novelty values to encode that each state is similarly well known instead of amplifying noise by scaling it to the whole interval $[0, 1]$.
+
 \begin{equation}\label{dist:rnd}
   \mathbb{P}_{RND}(s_0^{(t)} = s) \propto \exp(\beta_{Nov} * SN^{(t)}(s)) \qquad s \in S_{init}
 \end{equation}
@@ -129,16 +131,31 @@ To combine both approaches it suffices to lay both distributions (\cref{dist:pro
 
 
 \section{Experiments}
+\label{sec:experiments}
+The approach was evaluated on two environments with sparse rewards and compared against PL and RND on its own and a baseline that samples starting states uniformly from $S_{(init)}$, here called vanilla. The uniform sampling in vanilla ensures that the approach is not too disadvantaged due to the sparsity compared to the other approaches, while not using more computation than a completely basic baseline.
+
+\subsection{Setup}
+\label{sec:setup}
+The experiments were run using PPO from Stable-Baselines3~\citep{sb3} using a multi-layer-perceptron as policy and value network. For every approach hyperparameters were optimized on 100 trials using SMAC3~\citep{smac}. \\
+To save on compute, trials were terminated early if they exceeded the performance threshold of $0.95$, corresponding to a solved environment (more details in \cref{sec:environments}). To reward fast learning configurations, the timesteps needed to reach this threshold was incorporated into the function SMAC optimizes. A maximum of one million timesteps was set. \\
+The architecture of the policy and critic network were jointly optimized, while RND got its own set of hyperparameters corresponding to its architecture. RND was trained using a multi-layer-perceptron with the mean-squared-error as loss and ReLU or LeakyReLU as activation function.
+
+Experiments were run on the LUH-cluster using an AMD EPYC 7513, 32GB of RAM and 20 CPU cores. A full run of parallelized HPO with sequential evaluation runs of the best found configuration afterwards did take about 10-14 hours. Evaluations were done on five different seeds for the best configuration found in each approach.
+
+\subsection{Environments}
+\label{sec:environments}
+
+All four approaches were evaluated on \textit{MiniGrid-DoorKey-8x8-v0} and \textit{MiniGrid-Unlock-v0} out of the MiniGrid library~\citep{minigrid}.
+
+\textit{Unlock} tasks the agent with finding the key, picking it up and then opening the door. A reward of $1 - 0.9 * (step\_count / max\_steps)$ is given after opening the door. The action space lets the agent choose one of the following actions: turn left or right, move forward, toggle (open/close) the door and 3 unused actions. The observation is given for all states in front and to the side of the agent until reaching a wall or door. For all visible cells it includes the object index, color index (not relevant in these environments) and the state of the object. To relax the problem a single boolean variable was added to the observation, stating if the agent currently posesses a key.
+
+\textit{DoorKey} adds the additional task of using the pickup action on the key instead of picking it up directly and to get to the goal state which is behind the locked door. Apart from that it is the same as Unlock. This task is significantly harder, because the agent has to find the key, pick it up, go to the door, walk into the next room and then find the goal state before getting any reward.
+
+
 \begin{figure}
   \includesvg[width=1.0\textwidth]{../plots/doorkey8/results_per_approach_paper.svg}
-\end{figure}a
-
-Here are your results and their description. Some things to look out for:
-\begin{itemize}
-    \item Use a high dpi when plotting
-    \item Even better: plot SVGs and use the corresponding LaTeX package to include them
-    \item Don't make me zoom in to read your axis descriptions!
-\end{itemize}
+  \caption{}
+\end{figure}
 
 \section{Discussion}
 Here you recap what you did, say what worked and what didn't and point towards future work.
