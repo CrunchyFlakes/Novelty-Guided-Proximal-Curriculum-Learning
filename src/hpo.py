@@ -9,10 +9,21 @@ from ConfigSpace import (
     GreaterThanCondition,
 )
 
+from typing import Mapping, Any
+
 
 def get_ppo_config_space(
     use_prox_curr: bool = True, use_state_novelty: bool = True
 ) -> ConfigurationSpace:
+    """Create configuration space for PPO agent including hyperparameters for the approach
+
+    Args:
+        use_prox_curr: if proximal curriculum learning should get activated
+        use_state_novelty: if state novelty guidance should get activated
+
+    Returns:
+        configuration/search space for the hyperparameters
+    """
     # Default values are composed of stable baselines defaults and
     # an aggregation of previously found configurations by SMAC for the different approaches.
     # This may result in SMAC not finding a new better configuration.
@@ -150,3 +161,26 @@ def get_ppo_config_space(
         prefix="approach", configuration_space=configspace_approach
     )
     return cs
+
+
+def create_sb_policy_kwargs(config: Mapping[str, Any]) -> dict:
+    """Create stable baseline policy configuration using given hyperparameters
+
+    Args:
+        config: configuration which contains the architecture configuration
+
+    Returns:
+        keyword arguments for stable baselines
+    """
+    return {
+        "net_arch": {
+            "pi": [
+                config[f"policy_layer{i}_size"]
+                for i in range(config["policy_n_layers"])
+            ],
+            "vf": [
+                config[f"policy_layer{i}_size"]
+                for i in range(config["policy_n_layers"])
+            ],
+        }
+    }
