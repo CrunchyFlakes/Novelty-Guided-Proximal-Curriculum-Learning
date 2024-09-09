@@ -38,6 +38,11 @@ class FullImgObsWrapper(FullyObsWrapper):
 
 class ImgObsKeyWrapper(ImgObsWrapper):
     def __init__(self, env):
+        """A wrapper to only return the image observation flattened and append if the agent currently has a key.
+
+        Args:
+            env (): The environment to use for observation generation. Will be reset to initial state after generating an observation
+        """
         super().__init__(env)
         self.space_to_flatten = spaces.Dict(
             {"image": self.observation_space, "key": spaces.Discrete(2)}
@@ -47,16 +52,32 @@ class ImgObsKeyWrapper(ImgObsWrapper):
     def observation(self, obs):
         return spaces.flatten(
             self.space_to_flatten,
-            {"image": obs["image"], "key": self.env.carrying != None},
+            {"image": obs["image"], "key": self.env.carrying != None},  # type: ignore
         )
 
 
 def get_prox_curr_env(env_class, *args, **kwargs):
+    """Create an env which support novelty-guided proximal curriculum learning using the given base class
+
+    You have to set the agent manually as stable baselines already needs the environment during initialization. (set_agent)
+    You also have to set parameters needed for novelty-guided proximal curriculum learning yourself. (setup_start_state_picking)
+
+    Args:
+        env_class (): base_class to wrap
+        *args: arguments to pass to base class
+        **kwargs: keyword arguments to pass to base class
+
+    Raises:
+        UnboundLocalError: If the agent is not set in the environment during a reset
+        ValueError: If the given agent does not have a value function
+
+    Returns:
+        An environment supporting novelty-guided proximal curriculum learning using the given base class
+    """
+
     class ProxCurrMinigridWrapper(env_class):
         class StateToObs:
             """Provide somewhat efficient implementation of converting a state in Minigrid to an observation
-
-            It may be possible to use the EmptyEnv class itself, but just to be sure to not mess anything up we create a second class here for peace of mind
 
             Attributes:
                 env: The environment which is (ab)used to calculate observation
@@ -75,6 +96,14 @@ def get_prox_curr_env(env_class, *args, **kwargs):
                     list[tuple[tuple[int, int], tuple[bool, bool]]],
                 ],
             ) -> torch.Tensor:
+                """Convert a state to an observation
+
+                Args:
+                    state: state to convert
+
+                Returns:
+                    observation as torch.Tensor
+                """
                 agent_pos, agent_dir, pos_item_to_carry, doors_with_states = state
 
                 # save current state
@@ -104,9 +133,7 @@ def get_prox_curr_env(env_class, *args, **kwargs):
 
                 obs_tensor = obs_as_tensor(
                     self.wrapped_env.observation(self.env.gen_obs()), device="cpu"
-                ).unsqueeze(
-                    0
-                )  # TODO: set device properly
+                ).unsqueeze(0)
 
                 self.env.agent_pos = original_agent_pos
                 self.env.agent_dir = original_agent_dir
@@ -128,6 +155,10 @@ def get_prox_curr_env(env_class, *args, **kwargs):
                 return obs_tensor
 
         def __init__(self, *args, **kwargs):
+            """Initialize environment
+            *args: arguments to pass to base class
+            **kwargs: kwargs to pass to base class
+            """
             super().__init__(*args, **kwargs)
             self.state_to_obs = ProxCurrMinigridWrapper.StateToObs(self)
 
@@ -189,6 +220,12 @@ def get_prox_curr_env(env_class, *args, **kwargs):
             config: Configuration,
             novelty_function: Callable,
         ):
+            """Setup environment for novelty-guided proximal curriculum learning
+
+            Args:
+                config: approach configuration containing the needed hyperparameters
+                novelty_function: novelty function to use for novelty-guidance
+            """
             self.beta_proximal = config["beta_proximal"]
             self.gamma_tradeoff = config["gamma_tradeoff"]
             self.novelty_function = novelty_function
@@ -260,6 +297,11 @@ def get_prox_curr_env(env_class, *args, **kwargs):
             return obs, {}
 
         def _get_curr_state(self):
+            """Generate a state which can be mapped via StateToObs
+
+            Returns:
+                state of environment
+            """
             positions = list(
                 product(range(0, self.grid.width), range(0, self.grid.height))
             )
@@ -276,6 +318,16 @@ def get_prox_curr_env(env_class, *args, **kwargs):
             return (self.agent_pos, self.agent_dir, carrying_pos, doors_with_states)
 
         def step(self, action):
+            """Take a step in the environment.
+
+            Passes most to the base class, but also updates novelty function
+
+            Args:
+                action (): action to take
+
+            Returns:
+                observation
+            """
             to_return = super().step(action)
             # novelty learning
             obs = self.state_to_obs(
