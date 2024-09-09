@@ -61,7 +61,7 @@ If you want to reproduce the results (due to SMAC parallelity results may differ
 ## Results
 Here is a short exempt out of the proposal. Read `proposal/proposal.pdf` for more information
 <div align="center">
-    <h4 align="center">Result plots for the different approaches on Doorkey-8x8</h4>
+    <h4 align="center">Result plot for the different approaches on Doorkey-8x8</h4>
     <img src="plots/doorkey8/results_per_approach_paper.svg" alt="Doorkey 8 results" width="60%"/>
 </div>
 
