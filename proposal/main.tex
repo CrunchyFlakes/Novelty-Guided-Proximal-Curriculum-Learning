@@ -207,7 +207,7 @@ Novelty-Guided Proximal Curriculum Learning enables to combine the efficiency of
 
 The experiments showed that this may result in faster learning performance, but it is not able to robustly do this on different seeds. \\
 One reason for this behaviour could be, that the direct overlaying of the distributions results in doing neither approach well and therefore picking of unreasonable starting states. This may be improved by interleaving start-state-picking with state novelty and PCL or scheduling the weight used for combination to allow for first getting a good value function via state novelty exploration and then exploit that knowledge to train the agent using PCL. \\
-Another reason may be, that hyperparameter optimization was not run long enough, which is further supported by the fact that a lot of hyperparameters where set as the given default. To save on compute, a multi-fidelty approach would be reasonable. \\
+Another reason may be, that hyperparameter optimization was not run long enough, which is further supported by the fact that a lot of hyperparameters where set as the given default. To save on compute, a multi-fidelity approach would be reasonable. \\
 Environments with dense rewards would additionally be interesting to judge the performance on significantly different tasks.
 
 In the long term, future work is needed on the actual picking and evolving of the pool of starting states, which would make this approach applicable to large state-action spaces and may improve the performance significantly. Finding interesting trajectories and using them as the pool of starting states, like in Go-Explore, would be one way interesting way to go about this.
