@@ -6,8 +6,10 @@ import torch
 from typing import Callable, Any
 from functools import reduce
 
+
 def dummy_novelty(input, learn_network=False):
     return torch.rand(input.shape[0])
+
 
 def get_novelty_function(
     config: dict[str, Any], env: gym.Env

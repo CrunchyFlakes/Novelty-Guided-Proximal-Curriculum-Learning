@@ -43,7 +43,8 @@ def pick_starting_state(
     # Calculate distribution over starting states based on state novelty
     state_novelty = (
         novelty_function(
-            torch.stack(list(map(torch.flatten, states_as_obs))).to(torch.float32), learn_network=False
+            torch.stack(list(map(torch.flatten, states_as_obs))).to(torch.float32),
+            learn_network=False,
         )
         .detach()
         .clone()
@@ -52,7 +53,6 @@ def pick_starting_state(
     state_novelty_normalized = state_novelty / np.max(state_novelty)
     state_novelty_exp = np.exp(beta_novelty * state_novelty_normalized)
     novelty_dist = state_novelty_exp / np.sum(state_novelty_exp)
-    
 
     combined_dist = gamma_tradeoff * pos_dist + (1 - gamma_tradeoff) * novelty_dist
     combined_dist = combined_dist / combined_dist.sum()  # fix rounding errors

@@ -222,16 +222,19 @@ def get_prox_curr_env(env_class, *args, **kwargs):
                 raise ValueError("Bound agent does not use ActorCriticPolicy")
 
             # Now set starting state
-            (starting_pos, starting_dir, pos_item_to_carry, doors_with_states), start_obs = (
-                pick_starting_state(
-                    value_function=value_function,
-                    novelty_function=self.novelty_function,  # TODO: set this properly
-                    state_candidates=self.generate_state_candidates(),
-                    state_to_obs=self.state_to_obs,  # type: ignore  # this is a Callable but LSP doesn't know
-                    beta_proximal=self.beta_proximal,
-                    beta_novelty=self.beta_novelty,
-                    gamma_tradeoff=(self.gamma_tradeoff),
-                )
+            (
+                starting_pos,
+                starting_dir,
+                pos_item_to_carry,
+                doors_with_states,
+            ), start_obs = pick_starting_state(
+                value_function=value_function,
+                novelty_function=self.novelty_function,  # TODO: set this properly
+                state_candidates=self.generate_state_candidates(),
+                state_to_obs=self.state_to_obs,  # type: ignore  # this is a Callable but LSP doesn't know
+                beta_proximal=self.beta_proximal,
+                beta_novelty=self.beta_novelty,
+                gamma_tradeoff=(self.gamma_tradeoff),
             )
             self.agent_pos = starting_pos
             self.agent_dir = starting_dir
@@ -260,24 +263,26 @@ def get_prox_curr_env(env_class, *args, **kwargs):
             positions = list(
                 product(range(0, self.grid.width), range(0, self.grid.height))
             )
-            carrying_pos = tuple(self.carrying.cur_pos.tolist()) if self.carrying else None
+            carrying_pos = (
+                tuple(self.carrying.cur_pos.tolist()) if self.carrying else None
+            )
             door_positions = [
                 pos for pos in positions if isinstance(self.grid.get(*pos), Door)
             ]
             doors_with_states = [
-                (pos, (self.grid.get(*pos).is_open, self.grid.get(*pos).is_locked)) for pos in door_positions
+                (pos, (self.grid.get(*pos).is_open, self.grid.get(*pos).is_locked))
+                for pos in door_positions
             ]
             return (self.agent_pos, self.agent_dir, carrying_pos, doors_with_states)
 
-        def step(
-            self, action
-        ):
+        def step(self, action):
             to_return = super().step(action)
             # novelty learning
-            obs = self.state_to_obs((self._get_curr_state()), )
+            obs = self.state_to_obs(
+                (self._get_curr_state()),
+            )
             self.novelty_function(obs.to(torch.float32), learn_network=True)
 
             return to_return
-
 
     return ProxCurrMinigridWrapper(*args, **kwargs)
