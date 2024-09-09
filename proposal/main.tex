@@ -26,9 +26,9 @@
 
 \maketitle
 \begin{abstract}
-    An abstract is a short summary of your project. It should really only be a single paragraph, not much more than 10 lines.
+  Reinforcement Learning proves to be able to solve increasingly harder environments. One Approach is to use curriculum learning to accelerate learning of the policy. Finding a good curriculum has often constrained itself to demonstrations or inflexible curricula not adapting to the agents progress. Recent work has allowed to create more flexible curricula by dynamically judging states and directly start from these. This work takes the approach of setting appropriate starting states via information from the agent and combines it with state novelty approaches to simultaneously explore the state-space, leveraging the ability to set starting states. This is demonstrated by combining \textit{Proximal Curriculum Learning} with \textit{Random Network Distillation}.
 
-    The project can be found at: \url{https://github.com/CrunchyFlakes/Novelty-Guided-Proximal-Curriculum-Learning}
+  The project can be found at: \url{https://github.com/CrunchyFlakes/Novelty-Guided-Proximal-Curriculum-Learning}
 \end{abstract}
 \section{Introduction}
 Reinforcement learning (RL) has shown to be able to solve difficult tasks in simulated environments (\citep{human_level_control}, \citep{continuous_control}, \citep{rl_go}). However, to solve real-world problems an agent has to often solve problems which exhibit large action- and state spaces, sparse rewards and changing tasks to get to a goal. This poses the problem of exploring these spaces and, even with good exploration getting close to the goal, the agent often does not get a reward due to the sparsity of these. Additionaly, training data gathering on real-world problems through e.g. simulation is often expensive and exploration therefore has to be done efficiently.
