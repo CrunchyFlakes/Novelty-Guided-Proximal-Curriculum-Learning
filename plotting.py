@@ -98,12 +98,12 @@ if __name__ == "__main__":
     ).reset_index()
 
     matplotlib.use("qtAgg")
-    sns.set_theme(context=args.context, style="darkgrid")
+    sns.set_theme(context=args.context, style="darkgrid", rc={'figure.figsize': ((4, 3))})
 
     xlim = result_infos["Timestep"].max()
 
     # Results per Approach, full plot
-    fig, ax = plt.subplots(figsize=(13, 7))
+    fig, ax = plt.subplots()
     sns.lineplot(data=result_infos_filled, x="Timestep", y="Score", hue="Approach")
     ax.set_ylim(bottom=0, top=1)
     ax.set_xlim(left=0, right=xlim)
