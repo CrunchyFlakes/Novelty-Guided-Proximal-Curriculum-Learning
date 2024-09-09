@@ -52,7 +52,7 @@ python main.py --approach_to_check comb --env_name doorkey --env_size 8 --mode e
 ```
 
 All run results are included in the directories `results` and `plots`.
-If you want to reproduce the results (due to SMAC parallelity results may differ slightly):
+If you want to reproduce the results (due to SMAC parallelity results may differ slightly), run the following. But be warned as this may multiple days to complete in this not that strongly parallelized version.:
 
 ```shell
 ./full_run.sh 
