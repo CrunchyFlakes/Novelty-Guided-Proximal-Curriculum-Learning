@@ -2,12 +2,8 @@ import gymnasium as gym
 from stable_baselines3 import PPO
 from stable_baselines3.common.on_policy_algorithm import OnPolicyAlgorithm
 from stable_baselines3.common.evaluation import evaluate_policy
-from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.utils import get_linear_fn
-from src.environments import get_prox_curr_env, ImgObsKeyWrapper
+from src.util import initialize_model_and_env
 from src.hpo import get_ppo_config_space
-from src.util import get_novelty_function
-from minigrid.envs import DoorKeyEnv, UnlockEnv
 import numpy as np
 from pathlib import PosixPath
 import torch
@@ -15,7 +11,7 @@ import torch
 from smac import HyperparameterOptimizationFacade, Scenario
 from ConfigSpace import Configuration, ConfigurationSpace
 
-from typing import Callable, Any, Mapping
+from typing import Callable
 import logging
 from functools import partial
 import os
@@ -28,43 +24,24 @@ logger = logging.getLogger(__name__)
 MAX_TIMESTEPS = 1_000_000
 
 
-def get_config_for_module(cfg: Configuration, module_name: str) -> dict[str, Any]:
-    """
-    This function is used to extract a sub configuration that belongs to a certain module
-    Note that this function needs to call for each level
-    :param cfg: a configuration
-    :param module_name: the module name
-    :return: cfg_module: a new dict that contains all the hp values belonging to the configuration
-    """
-    cfg_module = {}
-    for key, value in cfg.items():
-        if key.startswith(module_name):
-            new_key = key.replace(f"{module_name}:", "")
-            cfg_module[new_key] = value
-    return cfg_module
-
-
-def create_sb_policy_kwargs(config: Mapping[str, Any]) -> dict:
-    return {  # TODO: decide if they should get different architectures
-        "net_arch": {
-            "pi": [
-                config[f"policy_layer{i}_size"]
-                for i in range(config["policy_n_layers"])
-            ],
-            "vf": [
-                config[f"policy_layer{i}_size"]
-                for i in range(config["policy_n_layers"])
-            ],
-        }
-    }
-
-
 def target_function_configurable(
     config: Configuration, env_name: str, env_size: int, seed: int = 0, n_seeds: int = 1
 ) -> tuple[float, dict]:
+    """Create target function for SMAC, but provide additional parameters that can be set prior by partial function application.
+
+    Args:
+        config: configuration to evaluate
+        env_name: environment to create
+        env_size: size the environment should be created with. Does have to match what is possible with the environment
+        seed: seed to evaluate
+        n_seeds: how many seeds (created using the given seed) to evaluate
+
+    Returns:
+        an aggregated score over all runs (lower is better) and an information dict of the evaluations
+    """
     if (
         seed is not int
-    ):  # Does SMAC sometimes pass multiple seeds? A comment in the documentation seemed like it, lets be sure
+    ):  # Does SMAC sometimes pass multiple seeds? A comment in the documentation seemed like it, lets be sure that nothing happens
         seed = 0
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -83,55 +60,16 @@ def target_function_configurable(
     return float(np.mean(scores)), infos
 
 
-def make_env(
-    config_approach: Mapping[str, Any], env_name: str, env_kwargs: dict
-) -> tuple[gym.Env, gym.Env]:
-    match env_name.lower():
-        case "doorkey":
-            env_class = DoorKeyEnv
-        case "unlock":
-            env_class = UnlockEnv
-            env_kwargs = {}
-        case _:
-            raise NotImplementedError(
-                f"Starting env with name {env_name} is not supported."
-            )
-    env_base = Monitor(ImgObsKeyWrapper(env_class(**env_kwargs)))
-    env = ImgObsKeyWrapper(get_prox_curr_env(env_class, **env_kwargs))
-    return env, env_base
-
-
-def initialize_model_and_env(
-    config: Configuration, env_name: str, env_size: int, seed: int = 0
-) -> tuple[PPO, gym.Env]:
-    config_ppo = get_config_for_module(config, "sb_ppo")
-    config_ppo_lr = get_config_for_module(config, "sb_lr")
-    config_policy = get_config_for_module(config, "policy")
-    config_approach = get_config_for_module(config, "approach")
-
-    env, env_base = make_env(config_approach, env_name, {"size": env_size})
-    model = PPO(
-        "MlpPolicy",
-        env=env,
-        **dict(config_ppo),
-        learning_rate=get_linear_fn(
-            config_ppo_lr["start_lr"],
-            config_ppo_lr["end_lr"],
-            config_ppo_lr["end_fraction"],
-        ),
-        policy_kwargs=create_sb_policy_kwargs(config_policy),
-        seed=seed,
-    )
-    env.unwrapped.set_agent(model)  # type: ignore
-    # Have to get the novelty function here and not inside "setup_start_state_picking", because it has to see the wrapper
-    novelty_function = get_novelty_function(config_approach, env)
-    env.unwrapped.setup_start_state_picking(config_approach, novelty_function)  # type: ignore
-    env.reset()  # workaround for minigrid bug
-
-    return model, env_base
-
-
 def train(model: PPO, env_eval: gym.Env) -> tuple[float, dict]:
+    """Train a given model and evaluate on the given env
+
+    Args:
+        model: the model to train, has to have the environment to train on already set
+        env_eval: environment to evaluate the agent on
+
+    Returns:
+        a score (lower is better) and an information dict of the evaluation
+    """
     score, timesteps_left, score_history = learn(
         model,
         timesteps=MAX_TIMESTEPS,
@@ -164,6 +102,19 @@ def learn(
     early_terminate: bool = False,
     early_termination_threshold: float = 0.0,
 ) -> tuple[float, int, dict[str, float]]:
+    """Training loop for the agent and the state novelty approach. Does also generate evaluations every n runs.
+
+    Args:
+        model: model to train
+        timesteps: how many timesteps to train
+        eval_env: on which environment to run evaluations on
+        eval_every_n_steps: how often to evaluate
+        early_terminate: terminate training if threshold is reached. Does only check on every evaluation
+        early_termination_threshold: the threshold for early termination
+
+    Returns:
+        The score the agent reached, how many timesteps would have been left to train (early termination), history of scores during the training
+    """
     timesteps_left = timesteps
     score = 0
     score_history = {}
@@ -173,7 +124,7 @@ def learn(
         model.learn(steps_to_learn)
         timesteps_left -= steps_to_learn
 
-        score = evaluate_policy(model, eval_env, n_eval_episodes=10)[0]
+        score = float(evaluate_policy(model, eval_env, n_eval_episodes=10)[0])  # type: ignore
         score_history[timesteps - timesteps_left] = float(score)
         logger.debug(f"Model at {timesteps - timesteps_left}/{timesteps} with {score=}")
         if score >= early_termination_threshold and early_terminate:
@@ -182,7 +133,7 @@ def learn(
     logger.info(
         f"Model finished with {score=}, {timesteps_left=}, {mean_score_history=}"
     )
-    return float(score), timesteps_left, score_history
+    return score, timesteps_left, score_history
 
 
 def run_hpo(
@@ -192,6 +143,18 @@ def run_hpo(
     facade_params: dict,
     target_function_smac: Callable,
 ) -> Configuration:
+    """Run hyperparameter optimization using SMAC
+
+    Args:
+        name: Name of the run. For logging purposes
+        configspace: search space for the hyperparameters
+        scenario_params: keyword arguments for SMACs Scenario
+        facade_params: keyword arguments for SMACs HyperparameterOptimizationFacade
+        target_function_smac: function that evaluates configurations and returns a score
+
+    Returns:
+
+    """
     logger.info(f"Now training {name} Model")
     scenario = Scenario(configspace, **scenario_params)
     smac = HyperparameterOptimizationFacade(
