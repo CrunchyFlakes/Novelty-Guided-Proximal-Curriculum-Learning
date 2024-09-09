@@ -18,7 +18,7 @@ import os
 import json
 
 logging.basicConfig()
-logging.root.setLevel(logging.INFO)
+logging.root.setLevel(logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 MAX_TIMESTEPS = 1_000_000
@@ -238,7 +238,7 @@ if __name__ == "__main__":
                     )
 
             facade_params = {
-                "logging_level": logging.INFO,
+                "logging_level": logging.DEBUG,
             }
             scenario_params = {
                 "n_trials": args.trials,
