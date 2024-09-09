@@ -26,24 +26,24 @@
 
 \maketitle
 \begin{abstract}
-  Reinforcement Learning proves to be able to solve increasingly harder environments, but still has trouble on sparse reward environments like Montezuma's Revenge. One Approach to solve this is by using curriculum learning to accelerate learning of the policy. Finding a good curriculum has often constrained itself to imitation learning or inflexible curricula. Recent work has allowed to create more flexible curricula by dynamically judging states and directly start from these. This work takes the approach of setting appropriate starting states via information from the agent and combines it with state novelty approaches to simultaneously explore the state-space, leveraging the ability to set starting states. This is demonstrated by combining \textit{Proximal Curriculum Learning} with \textit{Random Network Distillation}.
+  Reinforcement Learning proves to be able to solve increasingly harder environments, but still has trouble on sparse reward environments like Montezuma's Revenge. One Approach to solve this is by using curriculum learning to accelerate learning of the policy. Finding a good curriculum has often constrained itself to imitation learning or inflexible curricula. Recent work has allowed to create more flexible curricula by dynamically judging states and directly starting from these. This work takes the approach of setting appropriate starting states via information from the agent and combines it with state novelty approaches to simultaneously explore the state-space, leveraging the ability to set starting states. This is demonstrated by combining \textit{Proximal Curriculum Learning} with \textit{Random Network Distillation}.
 
   The project can be found at: \url{https://github.com/CrunchyFlakes/Novelty-Guided-Proximal-Curriculum-Learning}
 \end{abstract}
 \section{Introduction}
 Reinforcement learning (RL) has shown to be able to solve difficult tasks in simulated environments (\citep{human_level_control}, \citep{continuous_control}, \citep{rl_go}). However, to solve real-world problems an agent has to often solve problems which exhibit large action- and state spaces, sparse rewards and changing tasks to get to a goal. This poses the problem of exploring these spaces and, even with good exploration getting close to the goal, the agent often does not get a reward due to the sparsity of these. Additionaly, training data gathering on real-world problems through e.g. simulation is often expensive and exploration therefore has to be done efficiently.
 
-One proposed method to tackle this problem is \textit{Curriculum Learning} (CL)~\citep{curr}. Curriculum learning applies the pedagogical idea of giving a student increasingly difficult tasks to RL algorithms. This allows agent to get to the reward more often on easier tasks and only after that to progress to more difficult tasks, which would have previously led to seldom rewards at best. By choosing a proper curriculum one also lowers the amount of needed environment steps, by only generating data which actually lets the agent learn. \\
-A possibility to implement curriculum learning is by setting the starting state closer to the goal and increasing this distance over the course of training. One approach to measure this distance is given by \cite{prox_curr}, where they measure the difficulty of the task by using the value function of the agent and proceed to give the agent tasks appropriate to its current learning progress. One weakness of this approach is, that at the beginning of learning the value function has not converged to proper values and therefore unsuitable starting states may be chosen.
+One proposed method to tackle this problem is \textit{Curriculum Learning} (CL)~\citep{curr}. Curriculum learning applies the pedagogical idea of giving a student increasingly difficult tasks to RL algorithms. This allows the agent to get to the reward more often on easier tasks and only after that to progress to more difficult tasks, which would have previously led to seldom rewards at best. \\
+A possibility to implement curriculum learning is by setting the starting state closer to the goal difficulty-wise and increasing this distance over the course of training. One approach to measure this distance is given by \cite{prox_curr}, where they measure the difficulty of the task by using the value function of the agent and proceed to give the agent tasks appropriate to its current learning progress. One weakness of this approach is, that at the beginning of learning the value function has not converged to proper values and therefore unsuitable starting states may be chosen.
 
 To explore the state space, \textit{state novelty} methods like random network distillation~\citep{rnd} have proven to be successfull in steering the agent towards underexplored states. This is usually done by adding an intrinsic reward to the agent for finding new states.
 
-This work aims to combine curriculum learning as done in \cite{prox_curr} with random network distillation~\citep{rnd}. By setting starting states also based on state novelty, the state space is properly explored from the beginning. This is crucial to let the agent properly explore the state space and overcome the random initialization of the value function, leading to proper curriculum learning.
+This work aims to combine curriculum learning as done in \cite{prox_curr} with random network distillation~\citep{rnd}. By setting starting states also based on state novelty, the state space can be properly explored from the beginning. This helpts the agent to explore the state space and overcome the random initialization of the value function, leading to tasks with appropriate difficulty.
 
 \section{Related Work}
 
 
-\textbf{Reverse Curriculum Generation}~\citep{reverse_curr_gen} uses random actions beginning from the starting state to sample nearby starting states that are easy enough for the agent to solve. It then proceeds to do some rollouts used for learning, sampling uniformly from these states. The starting states are then rated using the collected rollouts to prune states which are too easy or too hard. Then the whole procedure is done again, until the agent has finished learning.
+\textbf{Reverse Curriculum Generation}~\citep{reverse_curr_gen} uses random actions beginning from the goal to sample nearby starting states that are easy enough for the agent to solve. It then proceeds to do some rollouts used for learning, sampling uniformly from these states. The starting states are then rated using the collected rollouts to prune the ones which are too easy or too hard. Then we randomly explore from these states to get new starting states. This is done until learning finishes.
 
 \textbf{Prioritizing Starting States for Reinforcement Learning}~\citep{prio_start_states} derives a list of starting states using states already discovered in the training process. A limited length buffer is used to collect these states and is processed in different fashions:
 \begin{enumerate}
@@ -59,54 +59,49 @@ Similar to the previous approach \cite{deepmimic} teach an agent to animate char
 \cite{montezuma_demonstration} exploit only one expert trajectory by first setting starting states from the end of the trajectory and then working its way back to the trajectorys start. The agent therefore starts training on easy states near the goal and ends training at the starting state.
 
 \textbf{Go-Explore}~\citep{go_explore} is divided into two phases. In phase 1, called \textit{Explore until solved}, it explores from the starting state by making 100 steps where each step has a 95\% chance to repeat the previous action and 5\% to take a random action. For promising trajectories this step is done again starting from the end of the trajectory.\\
-In phase 2 the found high-promising trajectories are used as the expert trajectory, first setting states at the end of the trajectories and then working its way back as proposed by \cite{montezuma_demonstration}.
+In phase 2 found high-promising trajectories are used as expert trajectories, first setting states at the end of the trajectories and then working its way back as proposed by \cite{montezuma_demonstration}.
 
-These methods either rely on expert demonstration being available, exploring states first to be able to pick them and/or do not allow the agent to set the pacing of task-difficulty itself. The next two covered methods are the two which will be combined in this work to cover those weaknesses.
+These methods either rely on expert demonstration being available and/or do not allow the agent to set the pacing of task-difficulty itself. The next two covered methods are the two which will be combined in this work to cover those weaknesses.
 
-\textbf{Random Network Distillation} (RND) approximates state novelty by using two different neural networks. One is initialized and stays fixed. The other one tries to approximate the fixed one. When inputting states in both, the loss steers the approximating one towards the fixed one, resulting in less differences between the two outputs for one state if seen enough. The loss is therefore a measure of novelty of the state. This approach and its implementation will be covered more thoroughly in \cref{sec:rnd}.
+\textbf{Random Network Distillation} (RND) approximates state novelty by using two different neural networks. One of them stays fixed while the other one tries to approximate the fixed one. When inputting states in both, the loss steers the approximating one towards the fixed one, resulting in a lower loss for often seen states. The loss is therefore a measure of novelty of the state. This approach and its implementation will be covered more thoroughly in \cref{sec:rnd}.
 
-\textbf{Proximal Curriculum Learning} (PCL) uses the agents value function to estimate the probability of success for a given state. The bigger the value, the higher the probability of success. Out of this a distribution is created over the states which favors probabilities around 0.5. This approach will be explained in more detail in \cref{sec:prox_detail}. \\
-Although being self-paced when the value function results values corresponding to the agents beliefs, directly after initialization the value function is random and setting starting states purely by difficulty may result in improper exploration. To mitigate this problem this work will incorporate RND additionally, which should help with exploration and in extension faster value function convergence.
-
+\textbf{Proximal Curriculum Learning} (PCL) uses the agents value function to estimate the probability of success for a given state. The bigger the value, the higher the probability of success. Out of this, a distribution over the states is created which favors probabilities around 0.5. This approach will be explained in more detail in \cref{sec:prox_detail}. \\
+Although being self-paced when the generated value approximatioons correspond to the agents learning state, directly after initialization the value function is random and setting starting states purely based on that may result in improper exploration. To mitigate this problem this work will additionally incorporate RND, which should help with exploration and in extension faster value function convergence.
 
 
 \section{Approach}
 \label{sec:Approach}
+
 \subsection{Proximal Curriculum Learning}
 \label{sec:prox_detail}
 \cite{prox_curr} use the probability of success ($PoS$) to pick starting states which are close to the agents capability.
-To calculate this probability they actually proposed two methods, using rollouts or using the value function of the agent. We will only look at the value function approach, because rollouts are more expensive and we cover the value functions shortcomings by using state novelty.
+To calculate this probability they actually proposed two methods, using rollouts or using the value function of the agent. We will only look at the value function approach, because rollouts are expensive and we cover the value functions shortcomings by using state novelty.
 
 The starting state distribution is calculated given the following equations. $S_{init}$ specifies the pool of starting states and $PoS_V$ corresponds to the approximated probability of success given the value function at step t:
 
-\[  PoS_V(s) = \frac{V(s) - V_{min}}{V_{max} - V_{min}} \]
-
 \begin{equation}\label{dist:prox_curr}
-  \mathbb{P}_{Prox}(s_0^{(t)} = s) \propto \exp(\beta_{Prox} * PoS_V(s) * (1 - PoS_V(s))) \qquad s \in S_{init}
+  \mathbb{P}_{Prox}(s_0^{(t)} = s) \propto \exp(\beta_{Prox} * PoS_V(s) * (1 - PoS_V(s))), \quad PoS_V(s) = \frac{V(s) - V_{min}}{V_{max} - V_{min}}
 \end{equation}
 
-$\beta$ is a hyperparameter which allows us to smooth or exaggerate the distribution. $PoS$ values close to 1 get low probabilities to avoid starting from states the agent already can solve, $PoS$ values close to 0 get low probabilities to avoid starting from states that are too hard.
+$\beta_{Prox}$ is a hyperparameter which allows us to smooth or exaggerate the distribution.
 
 \subsection{Random Network Distillation}
 \label{sec:rnd}
 \cite{rnd} use two neural networks, of which one is fixed while the other learns to approximate the fixed one given the occurring states as input.
 
-The original approach uses the novelty approximation to add an intrinsic reward to the agent, but, since we already have the ability to set starting states, this work only uses it to calculate a distribution similar to \cref{sec:prox_detail} over the states in $S_{init}$.
-
+The original approach uses the novelty approximation to add an intrinsic reward to the agent, but, since we already have the ability to set starting states, this work only uses it to calculate a \textit{distribution} similar to \cref{sec:prox_detail} over the states in $S_{init}$.
 To obtain this distribution the following calculations are made. $SN^{(t)}$ denotes the state novelty given the parameters at step t of the approximating network and $J^{(t)}$ denotes the loss given the parameters at step t:
 
-\[ SN^{(t)}(s) = \frac{J^{(t)}}{J_{max}^{(t)}} \qquad s \in S_{init} \]
+\begin{equation}\label{dist:rnd}
+  \mathbb{P}_{RND}(s_0^{(t)} = s) \propto \exp(\beta_{Nov} * SN^{(t)}(s)) \quad SN^{(t)}(s) = \frac{J^{(t)}}{J_{max}^{(t)}}
+\end{equation}
 
 $SN$ is only normalized using the maximum, to allow the novelty values to encode that each state is similarly well known instead of amplifying noise by scaling it to the whole interval $[0, 1]$.
-
-\begin{equation}\label{dist:rnd}
-  \mathbb{P}_{RND}(s_0^{(t)} = s) \propto \exp(\beta_{Nov} * SN^{(t)}(s)) \qquad s \in S_{init}
-\end{equation}
 
 \subsection{Combining both approaches: Novelty-Guided Proximal Curriculum Learning (NGPCL)}
 \label{sec:comb}
 
-To combine both approaches it suffices to lay both distributions (\cref{dist:prox_curr}, \cref{dist:rnd}) on top of each other using a hyperparameter $\gamma$. Additionally one can update the set of starting states $S_init$ on every step t.:
+To combine both approaches it suffices to lay both distributions (\cref{dist:prox_curr}, \cref{dist:rnd}) on top of each other using a hyperparameter $\gamma$. Additionally one can update the set of starting states $S_{init}$ on every step t.:
 
 \begin{equation}\label{dist:comb}
   \mathbb{P}(s_0^{(t)} = s) = \gamma * \mathbb{P}_{Prox}(s_0^{(t)}) + (1 - \gamma) * \mathbb{P}_{RND}(s_0^{(t)}) \qquad s \in S_{init}^{(t)}
@@ -116,7 +111,7 @@ To combine both approaches it suffices to lay both distributions (\cref{dist:pro
     \caption{Training Algorithm}
     \label{alg:code}
     \begin{algorithmic}
-      \Require environment $e$, Agent with policy $\pi^{(0)}$ and value function $V^{(0)}$, Starting states $S_{init}^{(0)}$, number of episodes N, performance threshold, $\beta_{Prox}$, $\beta_{RND}$, $\gamma$ \eta
+      \Require environment $e$, Agent with policy $\pi^{(0)}$ and value function $V^{(0)}$, Starting states $S_{init}^{(0)}$, number of episodes N, performance threshold \eta, $\beta_{Prox}$, $\beta_{RND}$, $\gamma$
         \State t = 0
         \State reward = 0
         \While {$t < N \land reward < \eta$}
@@ -133,13 +128,11 @@ To combine both approaches it suffices to lay both distributions (\cref{dist:pro
 
 \section{Experiments}
 \label{sec:experiments}
-The approach was evaluated on two environments with sparse rewards and compared against PCL and RND on its own and a baseline that samples starting states uniformly from $S_{(init)}$, here called vanilla. The uniform sampling in vanilla ensures that the approach is not too disadvantaged due to the sparsity compared to the other approaches, while not using more computation than a completely basic baseline. Evaluations were done using unmodified environments where the agent starts at the actual starting state.
+The approach was evaluated on two environments with sparse rewards and compared against PCL and RND on its own and a baseline that samples starting states uniformly from $S_{(init)}$ called vanilla. The uniform sampling in vanilla ensures that the approach is not too disadvantaged due to the sparsity compared to the other approaches. Evaluations were done using unmodified environments where the agent starts at the actual starting state.
 
-\subsection{Setup}
-\label{sec:setup}
 The experiments were run using PPO from Stable-Baselines3~\citep{sb3} using a multi-layer-perceptron as policy and value network. For every approach hyperparameters were optimized on 100 trials using SMAC3~\citep{smac}. \\
-To save on compute, trials were terminated early if they exceeded the performance threshold of $0.95$, corresponding to a solved environment (more details in \cref{sec:environments}). To reward fast learning configurations, the timesteps needed to reach this threshold was incorporated into the function SMAC optimizes. A maximum of one million timesteps was set. \\
-The architecture of the policy and critic network were jointly optimized, while RND got its own set of hyperparameters corresponding to its architecture. RND was trained using a multi-layer-perceptron with the mean-squared-error as loss and ReLU or LeakyReLU as activation function.
+To save on compute, trials were terminated early if they exceeded the performance threshold of $0.95$, corresponding to a solved environment. To reward fast learning configurations, the timesteps needed to reach this threshold was incorporated into the function SMAC optimizes. A maximum of one million timesteps was set. \\
+The architecture of the policy and critic network were set the same, while RND got its own set of hyperparameters corresponding to its architecture. RND was trained using a multi-layer-perceptron with the mean-squared-error as loss and ReLU or LeakyReLU as activation function.
 
 Experiments were run on the LUH-cluster using an AMD EPYC 7513, 32GB of RAM and 20 CPU cores. A full run of parallelized HPO with sequential evaluation runs of the best found configuration afterwards did take about 10-14 hours. Evaluations were done on five different seeds for the best configuration found in each approach.
 
@@ -150,20 +143,16 @@ All four approaches were evaluated on \textit{MiniGrid-DoorKey-8x8-v0} and \text
 
 \textit{Unlock} tasks the agent with finding the key, picking it up and then opening the door. A reward of $1 - 0.9 * (step\_count / max\_steps)$ is given after opening the door. The action space lets the agent choose one of the following actions: turn left or right, move forward, toggle (open/close) the door and 3 unused actions. The observation is given for all states in front and to the side of the agent until reaching a wall or door. For all visible cells it includes the object index, color index (not relevant in these environments) and the state of the object. To relax the problem a single boolean variable was added to the observation, stating if the agent currently posesses a key.
 
-\textit{DoorKey} adds the additional task of using the pickup action on the key instead of picking it up directly and to get to the goal state which is behind the locked door. Apart from that it is the same as Unlock. This task is significantly harder, because the agent has to find the key, pick it up, go to the door, walk into the next room and then find the goal state before getting any reward.
+\textit{DoorKey} adds the additional task of using the pickup action on the key instead of picking it up directly and to get to the goal state which is behind the locked door. Apart from that it is the same as Unlock. This task is significantly harder, because the agent has to actively pick up the key and also find the goal inside the locked room.
 
-To keep the implementation simple $S_{init}$ uses the given environment after a reset and then creates all states over the following variables:
-\begin{enumerate}
-  \item agent starting position and direction
-  \item if agent has picked up the key already
-  \item if door is open, closed or locked
-\end{enumerate}
+To keep the implementation simple $S_{init}$ uses the given environment after a reset and then creates all states over the agents starting position and direction, key carrying status, and door status.
 
 \subsection{Results}
 \label{sec:results}
 
-A typical configuration used architectures with 2-4 layers for all networks. Layer sizes where usually picked from starting at 128 and then going to 32 or 64. $\beta_{NOV}$ values where usually close to 20, while $\beta_{PROX}$ usually where set to 20, but one time got a value of 4. \\
+A typical hyperparameter-configuration used architectures with two to four layers for all networks. Layer sizes where usually picked from starting at 128 and then going to 32 or 64. $\beta_{NOV}$ was usually close to 20, while $\beta_{PROX}$ usually was set to 20, but one time got a value of four. \\
 Most of these values are close to the defaults.
+
 
 \begin{figure}[ht]
   \begin{subfigure}{0.49\textwidth}
@@ -191,27 +180,27 @@ Most of these values are close to the defaults.
     \caption{Unlock}
     \label{fig:comb:unlock}
   \end{subfigure}
-  \caption{Rewards over the training steps for novelty-guided proximal curriculum learning}
+  \caption{Rewards over the training steps for Novelty-Guided Proximal Curriculum Learning}
   \label{fig:comb}
 \end{figure}
 
 \Cref{fig:all:doorkey8} shows that NGPCL can lead to worse results than using PCL and RND alone. NGPCL was the fastest to get decent results, but then failed to converge to solving the environment. The best approach here was the baseline, finishing at around 630.000 timesteps on average. RND finished at around 650.000 and PCL finished at about 870.000 timesteps on average. The confidence intervals do not differ by that much, only NGPCL did have significant outbreaks towards the end of learning.
 
-In the Unlock environment (also \cref{fig:all}) PCL was the best approach, finishing really fast after about 370.000 steps on average. Vanilla was the worst approach, never being able to converge completely. RND did also not perform well, finishing after 800.000 steps, which also can be seen on NGPCL (almost 800.000 steps).
+In the Unlock environment (also \cref{fig:all}) PCL was the best approach, finishing really fast after about 370.000 steps on average. Vanilla was the worst approach, never being able to converge completely. RND did also not perform well, finishing after 800.000 steps and having significant deviations in performance. NGPCL performed worse than PCL, but was close to terminating after about 370.000 steps.
 
 Looking at \cref{fig:comb} shows us, that NGPCL is able to solve the environments fast on most seeds, but sometimes is not able to converge properly.
 
 
 \section{Discussion}
-Novelty-Guided Proximal Curriculum Learning enables to combine the efficiency of Proximal Curriculum Learning and exploration of state novelty approaches like Random Network Distillation. This allows an agent to set its learning pace itself, while exploring the state space efficiently using different starting states. It also provides a way to do curriculum learning without expert demonstrations or environment knowledge, although this is limited.
+Novelty-Guided Proximal Curriculum Learning enables to combine the efficiency of Proximal Curriculum Learning and exploration of state novelty approaches like Random Network Distillation. This allows an agent to set its learning pace itself, while exploring the state space efficiently using different starting states. It also provides a way to do curriculum learning without expert demonstrations or environment knowledge, although the success is limited. The main drawback of this approach is, that environments have to support the setting of the starting state.
 
-The experiments showed that this may result in faster learning performance, but it is not able to robustly do this on different seeds. \\
-One reason for this behaviour could be, that the direct overlaying of the distributions results in doing neither approach well and therefore picking of unreasonable starting states. This may be improved by interleaving start-state-picking with state novelty and PCL or scheduling the weight used for combination to allow for first getting a good value function via state novelty exploration and then exploit that knowledge to train the agent using PCL. \\
+The experiments showed that this approach may result in faster learning performance, but it is not able to do this robustly on different seeds. \\
+One reason for this behaviour could be, that the direct overlaying of the distributions results in doing neither approach well and therefore picking of unreasonable starting states. This may be improved by interleaving PCL and RND on each environment reset or scheduling the weight used for combination to allow for first getting a good value function via state novelty exploration and then exploit that knowledge to train the agent using PCL. \\
 Another reason may be, that hyperparameter optimization was not run long enough, which is further supported by the fact that a lot of hyperparameters where set as the given default. To save on compute, a multi-fidelity approach would be reasonable. \\
-Environments with dense rewards would additionally be interesting to judge the performance on significantly different tasks.
+Environments with dense rewards or local minimas in the reward space would additionally be interesting to judge the performance on significantly different tasks.
 
-In the long term, future work is needed on the actual picking and evolving of the pool of starting states, which would make this approach applicable to large state-action spaces and may improve the performance significantly. Finding interesting trajectories and using them as the pool of starting states, like in Go-Explore, would be one way interesting way to go about this.
-
+In the long term, future work is needed on the actual picking and evolving of the pool of starting states, which would make this approach applicable to large state-action spaces and may improve the performance significantly. Finding interesting trajectories and using them as the pool of starting states, like in Go-Explore, would be one way promising way to go about this. \\
+Different state novelty approaches may also lead to better performance.
 
 
 % Everything from this point on does not count towards your page count
@@ -230,45 +219,45 @@ In the long term, future work is needed on the actual picking and evolving of th
 \item General points:
 \begin{enumerate}
   \item Do the main claims made in the abstract and introduction accurately reflect your contributions and scope?
-    \answerTODO{}
+    \answerYes{}
   \item Did you cite all relevant related work?
-    \answerTODO{}
+    \answerYes{}
   \item Did you describe the limitations of your work?
-    \answerTODO{}
+    \answerYes{}
   \item Did you include a discussion of future work?
-    \answerTODO{}
+    \answerYes{}
 \end{enumerate}
 
 \item If you are including theoretical results...
 \begin{enumerate}
   \item Did you state the full set of assumptions of all theoretical results?
-    \answerTODO{}
+    \answerNA{}
 	\item Did you include complete proofs of all theoretical results?
-    \answerTODO{}
+    \answerNA{}
 \end{enumerate}
 
 \item If you ran experiments (e.g. for benchmarks)...
 \begin{enumerate}
   \item Did you include the code, data, and instructions needed to reproduce the main experimental results (either in the supplemental material or as a URL)?
-    \answerTODO{}
+    \answerYes{}
   \item Did you specify all the training details (e.g., data splits, hyperparameters, how they were chosen)?
-    \answerTODO{}
+    \answerYes{}
   \item Did you run at least 5 repetitions of your method?
-    \answerTODO{}
+    \answerYes{}
   \item Did you report error bars (e.g., with respect to the random seed after running experiments multiple times)?
-    \answerTODO{}
+    \answerYes{}
   \item Did you include the total amount of compute and the type of resources used (e.g., type of GPUs, internal cluster, or cloud provider)?
-    \answerTODO{}
+    \answerYes{}
 \end{enumerate}
 
 \item If you are using existing assets (e.g., code, data, models) or curating/releasing new assets...
 \begin{enumerate}
   \item If your work uses existing assets, did you cite the creators?
-    \answerTODO{}
+    \answerYes{}
   \item Did you make sure the license of the assets permits usage?
-    \answerTODO{}
+    \answerYes{}
   \item Did you reference the assets directly within your code and repository?
-    \answerTODO{}
+    \answerYes{}
 \end{enumerate}
 \end{enumerate}
 \end{document}
