@@ -111,7 +111,7 @@ if __name__ == "__main__":
         plt.xticks(rotation=45)
     # Remove legend title
     handles, labels = ax.get_legend_handles_labels()
-    ax.legend(handles=handles[1:], labels=labels[1:])
+    ax.legend(handles=handles, labels=labels)
     plt.tight_layout()
     plt.savefig(args.output_dir / f"results_per_approach_{args.context}.svg")
 
