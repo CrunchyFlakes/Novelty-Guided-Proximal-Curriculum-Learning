@@ -98,7 +98,7 @@ if __name__ == "__main__":
     ).reset_index()
 
     matplotlib.use("qtAgg")
-    sns.set_theme(context=args.context, style="darkgrid", rc={'figure.figsize': ((4, 3))})
+    sns.set_theme(context=args.context, style="darkgrid", rc={'figure.figsize': ((4, 2.5))})
 
     xlim = result_infos["Timestep"].max()
 
@@ -109,6 +109,9 @@ if __name__ == "__main__":
     ax.set_xlim(left=0, right=xlim)
     if args.context == "talk":
         plt.xticks(rotation=45)
+    # Remove legend title
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles=handles[1:], labels=labels[1:])
     plt.tight_layout()
     plt.savefig(args.output_dir / f"results_per_approach_{args.context}.svg")
 
