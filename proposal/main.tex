@@ -13,8 +13,9 @@
 \usepackage{algorithm}
 \usepackage{algpseudocode}
 \usepackage{cleveref}
-\usepackage{svg}
+\usepackage[inkscapepath=svgsubdir]{svg}
 \usepackage{microtype}
+\usepackage{subcaption}
 
 % Add your own as neccessary
 
@@ -64,7 +65,7 @@ These methods either rely on expert demonstration being available, exploring sta
 
 \textbf{Random Network Distillation} (RND) approximates state novelty by using two different neural networks. One is initialized and stays fixed. The other one tries to approximate the fixed one. When inputting states in both, the loss steers the approximating one towards the fixed one, resulting in less differences between the two outputs for one state if seen enough. The loss is therefore a measure of novelty of the state. This approach and its implementation will be covered more thoroughly in \cref{sec:rnd}.
 
-\textbf{Proximal Curriculum Learning} (PL) uses the agents value function to estimate the probability of success for a given state. The bigger the value, the higher the probability of success. Out of this a distribution is created over the states which favors probabilities around 0.5. This approach will be explained in more detail in \cref{sec:prox_detail}. \\
+\textbf{Proximal Curriculum Learning} (PCL) uses the agents value function to estimate the probability of success for a given state. The bigger the value, the higher the probability of success. Out of this a distribution is created over the states which favors probabilities around 0.5. This approach will be explained in more detail in \cref{sec:prox_detail}. \\
 Although being self-paced when the value function results values corresponding to the agents beliefs, directly after initialization the value function is random and setting starting states purely by difficulty may result in improper exploration. To mitigate this problem this work will incorporate RND additionally, which should help with exploration and in extension faster value function convergence.
 
 
@@ -102,7 +103,7 @@ $SN$ is only normalized using the maximum, to allow the novelty values to encode
   \mathbb{P}_{RND}(s_0^{(t)} = s) \propto \exp(\beta_{Nov} * SN^{(t)}(s)) \qquad s \in S_{init}
 \end{equation}
 
-\subsection{Combining both approaches}
+\subsection{Combining both approaches: Novelty-Guided Proximal Curriculum Learning (NGPCL)}
 \label{sec:comb}
 
 To combine both approaches it suffices to lay both distributions (\cref{dist:prox_curr}, \cref{dist:rnd}) on top of each other using a hyperparameter $\gamma$. Additionally one can update the set of starting states $S_init$ on every step t.:
@@ -132,7 +133,7 @@ To combine both approaches it suffices to lay both distributions (\cref{dist:pro
 
 \section{Experiments}
 \label{sec:experiments}
-The approach was evaluated on two environments with sparse rewards and compared against PL and RND on its own and a baseline that samples starting states uniformly from $S_{(init)}$, here called vanilla. The uniform sampling in vanilla ensures that the approach is not too disadvantaged due to the sparsity compared to the other approaches, while not using more computation than a completely basic baseline. Evaluations were done using unmodified environments where the agent starts at the actual starting state.
+The approach was evaluated on two environments with sparse rewards and compared against PCL and RND on its own and a baseline that samples starting states uniformly from $S_{(init)}$, here called vanilla. The uniform sampling in vanilla ensures that the approach is not too disadvantaged due to the sparsity compared to the other approaches, while not using more computation than a completely basic baseline. Evaluations were done using unmodified environments where the agent starts at the actual starting state.
 
 \subsection{Setup}
 \label{sec:setup}
@@ -151,15 +152,67 @@ All four approaches were evaluated on \textit{MiniGrid-DoorKey-8x8-v0} and \text
 
 \textit{DoorKey} adds the additional task of using the pickup action on the key instead of picking it up directly and to get to the goal state which is behind the locked door. Apart from that it is the same as Unlock. This task is significantly harder, because the agent has to find the key, pick it up, go to the door, walk into the next room and then find the goal state before getting any reward.
 
+To keep the implementation simple $S_{init}$ uses the given environment after a reset and then creates all states over the following variables:
+\begin{enumerate}
+  \item agent starting position and direction
+  \item if agent has picked up the key already
+  \item if door is open, closed or locked
+\end{enumerate}
 
-\begin{figure}
-  \includesvg[width=1.0\textwidth]{../plots/doorkey8/results_per_approach_paper.svg}
-  \caption{}
+\subsection{Results}
+\label{sec:results}
+
+A typical configuration used architectures with 2-4 layers for all networks. Layer sizes where usually picked from starting at 128 and then going to 32 or 64. $\beta_{NOV}$ values where usually close to 20, while $\beta_{PROX}$ usually where set to 20, but one time got a value of 4. \\
+Most of these values are close to the defaults.
+
+\begin{figure}[ht]
+  \begin{subfigure}{0.49\textwidth}
+    \includesvg[width=\textwidth]{../plots/doorkey8/results_per_approach_paper.svg}
+    \caption{Doorkey-8x8}
+    \label{fig:all:doorkey8}
+  \end{subfigure}
+  \begin{subfigure}{0.49\textwidth}
+    \includesvg[width=\textwidth]{../plots/unlock/results_per_approach_paper.svg}
+    \caption{Unlock}
+    \label{fig:all:unlock}
+  \end{subfigure}
+  \caption{Rewards over the training steps with 95\% confidence intervals over 5 seeds. Later timesteps in early terminated episodes where filled with the value achieved at termination.}
+  \label{fig:all}
 \end{figure}
 
+\begin{figure}[ht]
+  \begin{subfigure}{0.49\textwidth}
+    \includesvg[width=\textwidth]{../plots/doorkey8/results_combined_paper.svg}
+    \caption{Doorkey-8x8}
+    \label{fig:comb:doorkey8}
+  \end{subfigure}
+  \begin{subfigure}{0.49\textwidth}
+    \includesvg[width=\textwidth]{../plots/unlock/results_combined_paper.svg}
+    \caption{Unlock}
+    \label{fig:comb:unlock}
+  \end{subfigure}
+  \caption{Rewards over the training steps for novelty-guided proximal curriculum learning}
+  \label{fig:comb}
+\end{figure}
+
+\Cref{fig:all:doorkey8} shows that NGPCL can lead to worse results than using PCL and RND alone. NGPCL was the fastest to get decent results, but then failed to converge to solving the environment. The best approach here was the baseline, finishing at around 630.000 timesteps on average. RND finished at around 650.000 and PCL finished at about 870.000 timesteps on average. The confidence intervals do not differ by that much, only NGPCL did have significant outbreaks towards the end of learning.
+
+In the Unlock environment (also \cref{fig:all}) PCL was the best approach, finishing really fast after about 370.000 steps on average. Vanilla was the worst approach, never being able to converge completely. RND did also not perform well, finishing after 800.000 steps, which also can be seen on NGPCL (almost 800.000 steps).
+
+Looking at \cref{fig:comb} shows us, that NGPCL is able to solve the environments fast on most seeds, but sometimes is not able to converge properly.
+
+
 \section{Discussion}
-Here you recap what you did, say what worked and what didn't and point towards future work.
-Make sure to include both immediate future work (i.e. what's left to make this a full 4-page workshop paper) and long-term future work (i.e. how to build on your ideas and results in the future).
+Novelty-Guided Proximal Curriculum Learning enables to combine the efficiency of Proximal Curriculum Learning and exploration of state novelty approaches like Random Network Distillation. This allows an agent to set its learning pace itself, while exploring the state space efficiently using different starting states. It also provides a way to do curriculum learning without expert demonstrations or environment knowledge, although this is limited.
+
+The experiments showed that this may result in faster learning performance, but it is not able to robustly do this on different seeds. \\
+One reason for this behaviour could be, that the direct overlaying of the distributions results in doing neither approach well and therefore picking of unreasonable starting states. This may be improved by interleaving start-state-picking with state novelty and PCL or scheduling the weight used for combination to allow for first getting a good value function via state novelty exploration and then exploit that knowledge to train the agent using PCL. \\
+Another reason may be, that hyperparameter optimization was not run long enough, which is further supported by the fact that a lot of hyperparameters where set as the given default. To save on compute, a multi-fidelty approach would be reasonable. \\
+Environments with dense rewards would additionally be interesting to judge the performance on significantly different tasks.
+
+In the long term, future work is needed on the actual picking and evolving of the pool of starting states, which would make this approach applicable to large state-action spaces and may improve the performance significantly. Finding interesting trajectories and using them as the pool of starting states, like in Go-Explore, would be one way interesting way to go about this.
+
+
 
 % Everything from this point on does not count towards your page count
 \newpage
