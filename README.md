@@ -1,3 +1,4 @@
+# Novelty-Guided Proximal Curriculum Learning
 <!-- ABOUT THE PROJECT -->
 ## About The Project
 This project was created during the course "Advanced Reinforcement Learning" at the Leibniz University Hanover.  
