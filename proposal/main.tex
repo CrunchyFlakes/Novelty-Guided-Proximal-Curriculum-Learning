@@ -63,9 +63,9 @@ In phase 2 found high-promising trajectories are used as expert trajectories, fi
 
 These methods either rely on expert demonstration being available and/or do not allow the agent to set the pacing of task-difficulty itself. The next two covered methods are the two which will be combined in this work to cover those weaknesses.
 
-\textbf{Random Network Distillation} (RND) approximates state novelty by using two different neural networks. One of them stays fixed while the other one tries to approximate the fixed one. When inputting states in both, the loss steers the approximating one towards the fixed one, resulting in a lower loss for often seen states. The loss is therefore a measure of novelty of the state. This approach and its implementation will be covered more thoroughly in \cref{sec:rnd}.
+\textbf{Random Network Distillation} (RND) approximates state novelty by using two different neural networks. One of them stays fixed while the other one tries to approximate the fixed one. When inputting states in both, the loss steers the approximating one towards the fixed one, resulting in a lower loss for often seen states. The loss is therefore a measure of novelty of the state. This approach does not add a lot of overhead, because only one backward pass is needed per step in the environment and networks may be comparatively small. Its implementation will be covered more thoroughly in \cref{sec:rnd}.
 
-\textbf{Proximal Curriculum Learning} (PCL) uses the agents value function to estimate the probability of success for a given state. The bigger the value, the higher the probability of success. Out of this, a distribution over the states is created which favors probabilities around 0.5. This approach will be explained in more detail in \cref{sec:prox_detail}. \\
+\textbf{Proximal Curriculum Learning} (PCL) uses the agents value function to estimate the probability of success for a given state. The bigger the value, the higher the probability of success. Out of this, a distribution over the states is created which favors probabilities around 0.5. Since it uses the existing value function, this approach also adds minimal computational overhead. Its implementation will be explained in more detail in \cref{sec:prox_detail}. \\
 Although being self-paced when the generated value approximatioons correspond to the agents learning state, directly after initialization the value function is random and setting starting states purely based on that may result in improper exploration. To mitigate this problem this work will additionally incorporate RND, which should help with exploration and in extension faster value function convergence.
 
 
@@ -199,7 +199,7 @@ One reason for this behaviour could be, that the direct overlaying of the distri
 Another reason may be, that hyperparameter optimization was not run long enough, which is further supported by the fact that a lot of hyperparameters where set as the given default. To save on compute, a multi-fidelity approach would be reasonable. \\
 Environments with dense rewards or local minimas in the reward space would additionally be interesting to judge the performance on significantly different tasks.
 
-In the long term, future work is needed on the actual picking and evolving of the pool of starting states, which would make this approach applicable to large state-action spaces and may improve the performance significantly. Finding interesting trajectories and using them as the pool of starting states, like in Go-Explore, would be one way promising way to go about this. \\
+In the long term, future work is needed on the actual picking and evolving of the pool of starting states, which would make this approach applicable to large state-action spaces and may improve the performance and computational cost significantly. Finding interesting trajectories and using them as the pool of starting states, like in Go-Explore, would be one way promising way to go about this. \\
 Different state novelty approaches may also lead to better performance.
 
 
