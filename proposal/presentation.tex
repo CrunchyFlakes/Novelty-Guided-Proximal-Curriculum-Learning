@@ -5,11 +5,12 @@
 \usepackage{amsfonts}
 \usepackage{nicefrac}
 \usepackage{graphicx}
-\usepackage{biblatex}
 \usepackage{subcaption}
 \usepackage[inkscapepath=svgsubdir]{svg}
 
+\usepackage[style=ext-authoryear]{biblatex}
 \addbibresource{references.bib}
+\DeclareOuterCiteDelims{parencite}{\bibopenbracket}{\bibclosebracket}
 
 \title{Novelty-Guided Proximal Curriculum Learning}
 \author{Jan Malte Töpperwien}
@@ -43,7 +44,7 @@
 \end{frame}
 
 \section{Method}
-\begin{frame}{Proximal Curriculum Learning (PCL)~\cite{prox_curr}}
+\begin{frame}{Proximal Curriculum Learning (PCL)~\parencite{prox_curr}}
   \begin{itemize}
     \item starting state based on \textit{probability of success} $PoS$
     \item $PoS \approx 0.5$
@@ -69,7 +70,7 @@
   \end{itemize}
 \end{frame}
 
-\begin{frame}{Novelty-Guided Proximal Curriculum Learning NGPCL}
+\begin{frame}{Novelty-Guided Proximal Curriculum Learning (NGPCL)}
   \begin{itemize}
     \item incorporate novelty by creating distribution over $S_{init}$
     \item[$\rightarrow$] faster $V$ convergence
@@ -92,15 +93,15 @@
       \includegraphics[width=0.75\textwidth, height=\textheight, keepaspectratio]{./images/doorkey-8x8-v0.png}
       \caption{DoorKey-8x8}
     \end{subfigure}
-    \caption{Environments used for experiments~\cite{minigrid}. Key was added to observation.}
+    \caption{Environments used for experiments~\parencite{minigrid}. Key was added to observation.}
   \end{figure}
 \end{frame}
 
 \begin{frame}{Setup}
   \begin{itemize}
     \item $S_{init}$ over all states, not evolving
-    \item Random Network Distillation (RND)~\cite{rnd} as state novelty implementation
-    \item Hyperparameters and architectures optimized by bayesian optimization using SMAC~\cite{smac}
+    \item Random Network Distillation (RND)~\parencite{rnd} as state novelty implementation
+    \item Hyperparameters and architectures optimized by bayesian optimization using SMAC~\parencite{smac}
   \end{itemize}
 \end{frame}
 
@@ -172,6 +173,9 @@
       \end{itemize}
     \end{column}
   \end{columns}
+\end{frame}
 
+\begin{frame}{References}
+  \printbibliography
 \end{frame}
 \end{document}
