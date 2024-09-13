@@ -27,16 +27,16 @@
       \begin{itemize}
         \item need lots of exploration
         \item sparse rewards -> infrequent learning signal
-        \item Use curriculum learning for apprioriate task difficulty -> self-paced
-        \item[$\rightarrow$] other approaches often not self-paced and imitation-based
-        \item How to set this task difficulty?
+        \item curriculum learning for apprioriate task difficulty
+        \item<2> \textit{How to set proper tasks?}
+        \item<2> current approaches often rigid and demonstration-based
       \end{itemize}
     \end{column}
     \hfill
     \begin{column}{0.48\textwidth}
       \begin{figure}
         \includegraphics[width=\textwidth, height=\textheight, keepaspectratio]{./images/learning-montezumas-revenge-from-a-single-demonstration}
-        % TODO: caption with source
+        \caption{\tiny\url{https://images.openai.com/blob/2c736f64-38dc-4c65-a1dd-aabe2ceb8ddf/learning-montezumas-revenge-from-a-single-demonstration.png}}
       \end{figure}
     \end{column}
   \end{columns}
@@ -45,11 +45,10 @@
 \section{Method}
 \begin{frame}{Proximal Curriculum Learning (PCL)~\cite{prox_curr}}
   \begin{itemize}
-    \item Set starting states based on \textit{probability of success} $PoS$
-    \item $PoS = 0.5 \rightarrow$ avoid tasks the agent fails on and avoid already learnt tasks
-    \item Approximate $PoS$ for a given state by using the agents value function $V$
-    \item $PoS$ is scaled to $[0, 1]$
-    \item distribution over pool of states $S_{init}$ where $PoS = 0.5$ is preferred
+    \item starting state based on \textit{probability of success} $PoS$
+    \item $PoS \approx 0.5 \rightarrow$
+    \item distribution over $S_{init}$
+    \item Approximate $PoS$ via agents value function $V$ (scaled to $[0, 1]$)
   \end{itemize}
   \vfill
   \pause
@@ -64,7 +63,7 @@
 \begin{frame}{State Novelty}
   Exploration may help us fix the problem.
   \begin{itemize}
-    \item novelty state $\sim$ V inaccuracy
+    \item state novelty $\sim$ V inaccuracy
     \item[$\rightarrow$] explore seldomly seen states
     \item set starting state based on state novelty
   \end{itemize}
@@ -138,18 +137,19 @@
 \end{frame}
 
 \section{Discussion}
-\begin{frame}
+\begin{frame}{Discussion}
   Results:
   \begin{itemize}
     \item some seeds showed fast learning
     \item ... others failed to solve the environment
+    \item performance differs per environment
   \end{itemize}
   \vfill
   \begin{columns}[T]
     \begin{column}{0.48\textwidth}
       Things to try:
       \begin{itemize}
-        \item schedule for overlay parameter of distributions
+        \item schedule for overlay parameter
         \item interleave PCL with RND
         \item try other state novelty approaches
         \item (dynamic) $S_{init}$ determination
@@ -160,7 +160,7 @@
       \begin{itemize}
         \item dense rewards
         \item big/continuous state- and/or action-spaces
-        \item reward space being not convex
+        \item reward space not being convex
       \end{itemize}
     \end{column}
   \end{columns}
